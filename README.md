@@ -5,7 +5,7 @@
 <h1 align="center">Переводчик: Набор 🌐</h1>
 
 <p align="center">
-  <b>Две системы перевода в одном расширении для SillyTavern.</b><br>
+  <b>Два вида переводчика в одном расширении для SillyTavern.</b><br>
   Двойной клик по слову в чате — перевод и словарь.<br>
   Кнопка <i class="fa-solid fa-language"></i> в полях карточек — перевод описаний и World Info.<br>
   Единая система кастомизации: цвета, CSS, провайдеры.
@@ -283,7 +283,6 @@ translator-suite/
   ├── banner.svg      — баннер для README
   └── README.md       — этот файл
 ```
-
 ---
 
 <p align="center">
