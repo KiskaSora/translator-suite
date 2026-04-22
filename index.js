@@ -1477,6 +1477,65 @@ function initFieldObserver() {
 // ──────────────────────────────────────────────────────────────
 //   INIT
 // ──────────────────────────────────────────────────────────────
+function injectExtensionsMenuEntry() {
+    // Вставляем блок в панель настроек расширений SillyTavern,
+    // чтобы можно было открыть настройки и включить модули обратно,
+    // даже если оба модуля выключены.
+    if (document.getElementById('ts-ext-entry')) return;
+    const host =
+        document.getElementById('translation_container') ||
+        document.getElementById('extensions_settings2') ||
+        document.getElementById('extensions_settings');
+    if (!host) return;
+
+    const html = `
+<div id="ts-ext-entry" class="extension_settings">
+  <div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b><i class="fa-solid fa-language"></i> Translator Suite</b>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+    </div>
+    <div class="inline-drawer-content">
+      <div style="display:flex; flex-direction:column; gap:8px; padding:6px 2px;">
+        <div style="opacity:.85; font-size:.9em;">
+          <i class="fa-solid fa-book fa-fw"></i> Двойной клик по слову — перевод.<br>
+          <i class="fa-solid fa-pen-to-square fa-fw"></i> Кнопка <i class="fa-solid fa-language"></i> в полях карточки/лорбука — перевод поля.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="menu_button" id="ts-ext-open-settings">
+            <i class="fa-solid fa-gear"></i> Настройки
+          </div>
+          <div class="menu_button" id="ts-ext-open-vocab">
+            <i class="fa-solid fa-book-open"></i> Словарь
+          </div>
+        </div>
+        <div id="ts-ext-status" style="opacity:.7; font-size:.85em;"></div>
+      </div>
+    </div>
+  </div>
+</div>`;
+    host.insertAdjacentHTML('beforeend', html);
+
+    function refreshStatus() {
+        const c = cfg();
+        const ico = on => on
+            ? '<i class="fa-solid fa-circle-check fa-fw"></i>'
+            : '<i class="fa-solid fa-circle-xmark fa-fw"></i>';
+        $('#ts-ext-status').html(
+            'Слова: ' + ico(c.modWords) + ' &nbsp;·&nbsp; Поля: ' + ico(c.modFields)
+        );
+    }
+    refreshStatus();
+
+    $('#ts-ext-open-settings').on('click', () => openSettings('modules'));
+    $('#ts-ext-open-vocab').on('click', () => showVocab());
+
+    $(document).on('click', '#ts-s-save, #ts-s-modwords, #ts-s-modfields',
+        () => setTimeout(refreshStatus, 50));
+}
+
+
+
 jQuery(async function() {
     try {
         $('#ts-overlay, #ts-vo, #ts-so, #ts-to, #ts-fm, #ts-fab').remove();
@@ -1487,6 +1546,15 @@ jQuery(async function() {
         updateFmBadge();
         scanFieldsAndInject();
         initFieldObserver();
+        injectExtensionsMenuEntry();
+        // Если панели расширений ещё нет (асинхронная загрузка Таверны) — попробуем позже
+        let tries = 0;
+        const tid = setInterval(() => {
+            tries++;
+            injectExtensionsMenuEntry();
+            if (document.getElementById('ts-ext-entry') || tries > 40) clearInterval(tid);
+        }, 500);
+
 
         if (cfg().modWords && cfg().highlightSaved === true) {
             setTimeout(highlightSavedInChat, 1200);
