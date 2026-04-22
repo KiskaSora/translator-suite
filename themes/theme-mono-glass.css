@@ -1,58 +1,80 @@
 /* ════════════════════════════════════════════════════════════
-   Translator Buttons — Тема «MONO GLASS»
-   Портирована из Translator Suite (ts-* → tb-*).
-   Прозрачное стекло (glassmorphism) + бургунди + голубой пунктир.
-   Справа — слот для PNG через --tb-side-img.
+   Translator Suite — Тема «MONO GLASS»
+   Прозрачное стекло (glassmorphism) + бургунди-слова
+   + голубой пунктир на всех UI-элементах.
+   Справа на каждом окне — слот для своей PNG-картинки
+   через CSS-переменную --ts-side-img.
+   ────────────────────────────────────────────────────────────
+   Подключение: вставьте этот CSS в раздел «Настройки → CSS»
+   расширения Translator Suite (или подключите файл).
+   Чтобы поставить свою картинку справа:
+       :root { --ts-side-img: url("https://example.com/pic.png"); }
    ════════════════════════════════════════════════════════════ */
 
-#translator-modal.tb-theme-mono-glass {
-    --tb-cardBg:    rgba(40, 40, 44, 0.42);
-    --tb-surfaceBg: rgba(255, 255, 255, 0.05);
-    --tb-text:      #f1f1f4;
-    --tb-textMuted: #b0b0b8;
-    --tb-border:    rgba(255, 255, 255, 0.14);
+:root {
+    /* Моно-стеклянная палитра (полупрозрачные слои) */
+    --ts-bg:        rgba(25, 25, 28, 0.55);
+    --ts-cardBg:    rgba(40, 40, 44, 0.42);
+    --ts-surfaceBg: rgba(255, 255, 255, 0.05);
+    --ts-text:      #f1f1f4;
+    --ts-textMuted: #b0b0b8;
+    --ts-border:    rgba(255, 255, 255, 0.14);
 
-    --tb-burgundy:   #b03a56;
-    --tb-burgundy-2: #cc4e6e;
-    --tb-blue:       #7cc4e8;
-    --tb-blue-soft:  rgba(124, 196, 232, 0.22);
+    /* Бургунди + голубой (сочетающаяся пара) */
+    --ts-burgundy:   #b03a56;   /* ярче для стекла */
+    --ts-burgundy-2: #cc4e6e;
+    --ts-blue:       #7cc4e8;   /* пунктир / детали */
+    --ts-blue-soft:  rgba(124, 196, 232, 0.22);
 
-    --tb-side-img:        none;
-    --tb-side-img-w:      140px;
-    --tb-side-img-opacity: 0.9;
-    --tb-side-img-pos:    bottom right;
+    --ts-accent:    var(--ts-burgundy);
+    --ts-addBtn:    var(--ts-burgundy);
+    --ts-closBtn:   rgba(255,255,255,0.06);
 
-    --tb-glass-blur:  22px;
+    --ts-radius:    18px;
+    --ts-spring:    cubic-bezier(0.34, 1.4, 0.64, 1);
+    --ts-shadow:    0 30px 90px rgba(0,0,0,0.55),
+                    0 0 0 1px rgba(255,255,255,0.06),
+                    inset 0 1px 0 rgba(255,255,255,0.10);
+
+    /* ── СЛОТ ДЛЯ КАРТИНКИ СПРАВА ── */
+    --ts-side-img:        none;       /* url("...") */
+    --ts-side-img-w:      140px;
+    --ts-side-img-opacity: 0.9;
+    --ts-side-img-pos:    bottom right;
+
+    /* Сила размытия стекла */
+    --ts-glass-blur:  22px;
 }
 
-/* ── Оверлей ── */
-#translator-modal.tb-theme-mono-glass .tb-backdrop {
+/* ── Оверлей: тонированный, не чёрный ── */
+#ts-overlay, #ts-vo, #ts-so, #ts-to, #ts-fm {
     background: rgba(20, 20, 25, 0.45) !important;
     backdrop-filter: blur(10px) saturate(140%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(140%) !important;
 }
 
-/* ── Диалог: стекло ── */
-#translator-modal.tb-theme-mono-glass .tb-dialog {
+/* ── Карточки: настоящее стекло ── */
+#ts-card, #ts-vp, #ts-tp, #ts-sp, #ts-fm-card {
     background: linear-gradient(
         135deg,
         rgba(255,255,255,0.10) 0%,
         rgba(255,255,255,0.04) 50%,
         rgba(176, 58, 86, 0.08) 100%
-    ), var(--tb-cardBg) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    backdrop-filter: blur(var(--tb-glass-blur)) saturate(160%) !important;
-    -webkit-backdrop-filter: blur(var(--tb-glass-blur)) saturate(160%) !important;
-    box-shadow:
-        0 30px 90px rgba(0,0,0,0.55),
-        0 0 0 1px rgba(255,255,255,0.06),
-        inset 0 1px 0 rgba(255,255,255,0.10) !important;
+    ), var(--ts-cardBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    backdrop-filter: blur(var(--ts-glass-blur)) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(var(--ts-glass-blur)) saturate(160%) !important;
+    box-shadow: var(--ts-shadow) !important;
     position: relative;
     overflow: hidden;
 }
 
 /* Блик сверху */
-#translator-modal.tb-theme-mono-glass .tb-dialog::before {
+#ts-card::before,
+#ts-vp::before,
+#ts-tp::before,
+#ts-sp::before,
+#ts-fm-card::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -65,211 +87,213 @@
     z-index: 0;
 }
 
-/* ── PNG справа ── */
-#translator-modal.tb-theme-mono-glass .tb-dialog::after {
+/* ── PNG-картинка справа ── */
+#ts-card::after,
+#ts-vp::after,
+#ts-tp::after,
+#ts-sp::after,
+#ts-fm-card::after {
     content: "";
     position: absolute;
-    right: 16px; bottom: 16px;
-    width: var(--tb-side-img-w);
-    height: var(--tb-side-img-w);
-    background-image: var(--tb-side-img);
+    right: 16px;
+    bottom: 16px;
+    width: var(--ts-side-img-w);
+    height: var(--ts-side-img-w);
+    background-image: var(--ts-side-img);
     background-repeat: no-repeat;
     background-size: contain;
-    background-position: var(--tb-side-img-pos);
-    opacity: var(--tb-side-img-opacity);
+    background-position: var(--ts-side-img-pos);
+    opacity: var(--ts-side-img-opacity);
     pointer-events: none;
     z-index: 0;
     filter: drop-shadow(0 4px 14px rgba(0,0,0,0.45));
 }
-#translator-modal.tb-theme-mono-glass .tb-header,
-#translator-modal.tb-theme-mono-glass .tb-panel {
+#ts-card > *, #ts-vp > *, #ts-tp > *, #ts-sp > *, #ts-fm-card > * {
     position: relative;
     z-index: 1;
 }
 
-/* ── Шапка ── */
-#translator-modal.tb-theme-mono-glass .tb-header {
-    background: rgba(255,255,255,0.04) !important;
-    border-bottom: 1px dashed var(--tb-blue) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-title {
+/* ── Заголовки и слова: бургунди ── */
+#ts-title {
     color: #ffffff !important;
     text-shadow: 0 1px 12px rgba(176, 58, 86, 0.35);
 }
-#translator-modal.tb-theme-mono-glass .tb-title svg {
-    color: var(--tb-burgundy) !important;
+#ts-tr,
+#ts-cru strong,
+.ts-vw, .ts-vt, .ts-va,
+.ts-arr, .ts-qi {
+    color: var(--ts-burgundy) !important;
+    text-shadow: 0 0 16px rgba(176, 58, 86, 0.25);
 }
 
-/* ── Вкладки ── */
-#translator-modal.tb-theme-mono-glass .tb-tab {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: var(--tb-textMuted) !important;
-    backdrop-filter: blur(6px) !important;
-    -webkit-backdrop-filter: blur(6px) !important;
+/* ── Иконочные кнопки ── */
+.ts-hb {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-blue) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
 }
-#translator-modal.tb-theme-mono-glass .tb-tab:hover {
-    background: rgba(176, 58, 86, 0.14) !important;
-    color: var(--tb-text) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-tab-active {
-    background: rgba(176, 58, 86, 0.22) !important;
-    border-color: var(--tb-burgundy) !important;
-    color: var(--tb-burgundy) !important;
-    text-shadow: 0 0 10px rgba(176, 58, 86, 0.35);
-}
-
-/* ── Close ── */
-#translator-modal.tb-theme-mono-glass .tb-close {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px dashed var(--tb-burgundy) !important;
-    color: var(--tb-burgundy) !important;
-    backdrop-filter: blur(6px) !important;
-    -webkit-backdrop-filter: blur(6px) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-close:hover {
-    background: var(--tb-burgundy) !important;
+.ts-hb:hover {
+    background: var(--ts-burgundy) !important;
+    border-color: var(--ts-burgundy-2) !important;
     color: #fff !important;
     box-shadow: 0 0 18px rgba(176, 58, 86, 0.45) !important;
 }
 
-/* ── Лейблы ── */
-#translator-modal.tb-theme-mono-glass .tb-lang-bar label,
-#translator-modal.tb-theme-mono-glass .tb-col > label,
-#translator-modal.tb-theme-mono-glass .tb-field > label,
-#translator-modal.tb-theme-mono-glass .tb-set-label {
-    color: var(--tb-burgundy) !important;
-    text-shadow: 0 0 12px rgba(176, 58, 86, 0.25);
-}
-
-/* ── Поля ввода — стекло ── */
-#translator-modal.tb-theme-mono-glass .tb-lang-group select,
-#translator-modal.tb-theme-mono-glass .tb-field select,
-#translator-modal.tb-theme-mono-glass .tb-field input[type="text"],
-#translator-modal.tb-theme-mono-glass .tb-field input[type="password"],
-#translator-modal.tb-theme-mono-glass .tb-field textarea,
-#translator-modal.tb-theme-mono-glass .tb-col textarea {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: var(--tb-text) !important;
-    backdrop-filter: blur(6px) !important;
-    -webkit-backdrop-filter: blur(6px) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-col textarea[readonly] {
-    background: rgba(255,255,255,0.03) !important;
-    color: var(--tb-textMuted) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-lang-group select:focus,
-#translator-modal.tb-theme-mono-glass .tb-field select:focus,
-#translator-modal.tb-theme-mono-glass .tb-field input:focus,
-#translator-modal.tb-theme-mono-glass .tb-field textarea:focus,
-#translator-modal.tb-theme-mono-glass .tb-col textarea:focus {
-    border-color: var(--tb-burgundy) !important;
-    border-style: solid !important;
-    background: rgba(255,255,255,0.08) !important;
-    box-shadow:
-        0 0 0 3px var(--tb-blue-soft),
-        0 0 20px rgba(176, 58, 86, 0.25) !important;
-}
-
-/* ── Swap ── */
-#translator-modal.tb-theme-mono-glass .tb-swap {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: var(--tb-blue) !important;
-    backdrop-filter: blur(6px) !important;
-    -webkit-backdrop-filter: blur(6px) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-swap:hover {
-    background: var(--tb-burgundy) !important;
-    color: #fff !important;
-}
-
-/* ── Бэйдж ── */
-#translator-modal.tb-theme-mono-glass .tb-badge {
-    background: rgba(124, 196, 232, 0.12) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: var(--tb-blue) !important;
-}
-
-/* ── Кнопки действий ── */
-#translator-modal.tb-theme-mono-glass .tb-primary {
+/* ── Главные кнопки: стеклянные с бургунди заливкой ── */
+#ts-badd,
+#ts-s-save,
+.ts-fm-primary {
     background: linear-gradient(135deg,
         rgba(176, 58, 86, 0.85),
         rgba(204, 78, 110, 0.75)) !important;
-    border: 1px dashed var(--tb-blue) !important;
+    border: 1px dashed var(--ts-blue) !important;
     color: #fff !important;
     backdrop-filter: blur(6px) !important;
     -webkit-backdrop-filter: blur(6px) !important;
-    box-shadow:
-        0 6px 22px rgba(176, 58, 86, 0.35),
-        inset 0 1px 0 rgba(255,255,255,0.18) !important;
+    box-shadow: 0 6px 22px rgba(176, 58, 86, 0.35),
+                inset 0 1px 0 rgba(255,255,255,0.18) !important;
 }
-#translator-modal.tb-theme-mono-glass .tb-primary:hover:not(:disabled) {
+#ts-badd:hover,
+#ts-s-save:hover,
+.ts-fm-primary:hover:not(:disabled) {
     background: linear-gradient(135deg,
         rgba(204, 78, 110, 0.95),
         rgba(176, 58, 86, 0.85)) !important;
+    opacity: 1 !important;
 }
-#translator-modal.tb-theme-mono-glass .tb-success {
-    background: rgba(50, 200, 100, 0.18) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: #70dd98 !important;
-    backdrop-filter: blur(6px) !important;
-    -webkit-backdrop-filter: blur(6px) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-secondary {
+
+#ts-bclose,
+.ts-fm-secondary {
     background: rgba(255,255,255,0.05) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: var(--tb-textMuted) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-textMuted) !important;
     backdrop-filter: blur(6px) !important;
     -webkit-backdrop-filter: blur(6px) !important;
 }
 
-/* ── Провайдер-кнопки ── */
-#translator-modal.tb-theme-mono-glass .tb-prov {
+/* ── Поля ввода (стеклянные) ── */
+#ts-vq,
+.ts-sfield select,
+.ts-sfield > input,
+.ts-sfield textarea,
+.ts-pw > input,
+.ts-fm-col textarea,
+.ts-ctxt,
+#ts-s-css {
     background: rgba(255,255,255,0.05) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    color: var(--tb-textMuted) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-text) !important;
     backdrop-filter: blur(6px) !important;
     -webkit-backdrop-filter: blur(6px) !important;
 }
-#translator-modal.tb-theme-mono-glass .tb-prov:hover:not(.active) {
+#ts-vq:focus,
+.ts-sfield select:focus,
+.ts-sfield input:focus,
+.ts-sfield textarea:focus,
+.ts-pw > input:focus,
+.ts-fm-col textarea:focus,
+.ts-ctxt:focus,
+#ts-s-css:focus {
+    border-color: var(--ts-burgundy) !important;
+    border-style: solid !important;
+    box-shadow: 0 0 0 3px var(--ts-blue-soft),
+                0 0 20px rgba(176, 58, 86, 0.25) !important;
+    background: rgba(255,255,255,0.08) !important;
+}
+
+/* ── Разделители: голубой пунктир ── */
+.ts-vhead,
+#ts-vsearch,
+#ts-shead,
+#ts-stabs,
+#ts-sfooter,
+.ts-ve {
+    border-color: var(--ts-blue) !important;
+    border-style: dashed !important;
+}
+
+/* ── Вкладки настроек ── */
+.ts-stab.ts-son {
+    color: var(--ts-burgundy) !important;
+    border-bottom: 2px dashed var(--ts-blue) !important;
     background: rgba(176, 58, 86, 0.14) !important;
-    color: var(--tb-text) !important;
-}
-#translator-modal.tb-theme-mono-glass .tb-prov.active {
-    background: rgba(176, 58, 86, 0.26) !important;
-    border-color: var(--tb-burgundy) !important;
-    color: #fff !important;
-    box-shadow: 0 0 18px rgba(176, 58, 86, 0.35) !important;
 }
 
-/* ── Панель провайдера ── */
-#translator-modal.tb-theme-mono-glass .tb-prov-panel {
-    background: rgba(255,255,255,0.04) !important;
-    border: 1px dashed var(--tb-blue) !important;
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
+/* ── Toggle-строки ── */
+.ts-toggle-row {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+}
+.ts-toggle-row:hover { border-color: var(--ts-burgundy) !important; }
+.ts-toggle-title i  { color: var(--ts-burgundy) !important; }
+.ts-switch input:checked + .ts-slider {
+    background: var(--ts-burgundy) !important;
+    box-shadow: 0 0 14px rgba(176, 58, 86, 0.45) !important;
 }
 
-/* ── Inline-кнопка (стеклянная) ── */
-.tb-btn {
+/* ── Цветные карточки ── */
+.ts-cr {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px dashed var(--ts-blue) !important;
+}
+
+/* ── Подсветка слов в чате ── */
+mark.ts-highlight {
+    border-bottom: 2px dashed var(--ts-blue) !important;
+    color: inherit !important;
+}
+mark.ts-highlight:hover {
+    background: rgba(176, 58, 86, 0.20) !important;
+    border-radius: 3px;
+}
+
+/* ── FAB (избранное) ── */
+#ts-fab-btn {
     background: rgba(40, 40, 44, 0.55) !important;
-    border: 1px dashed var(--tb-blue, #7cc4e8) !important;
-    color: var(--tb-burgundy, #b03a56) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-burgundy) !important;
     backdrop-filter: blur(10px) saturate(140%) !important;
     -webkit-backdrop-filter: blur(10px) saturate(140%) !important;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.45) !important;
+    box-shadow: 0 6px 26px rgba(0,0,0,0.55) !important;
 }
-.tb-btn:hover {
-    background: var(--tb-burgundy, #b03a56) !important;
-    border-color: var(--tb-burgundy-2, #cc4e6e) !important;
+
+/* ── Кнопка в textarea (модуль «Поля») ── */
+.ts-field-btn {
+    background: rgba(40, 40, 44, 0.55) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-burgundy) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+}
+.ts-field-btn:hover {
+    background: var(--ts-burgundy) !important;
+    border-color: var(--ts-burgundy-2) !important;
     color: #fff !important;
+}
+
+/* ── Toast ── */
+#ts-toast {
+    background: rgba(40, 40, 44, 0.55) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-text) !important;
+    backdrop-filter: blur(14px) saturate(140%) !important;
+    -webkit-backdrop-filter: blur(14px) saturate(140%) !important;
+}
+
+/* ── Бэйдж ── */
+.ts-badge {
+    background: rgba(124, 196, 232, 0.12) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-blue) !important;
 }
 
 /* ── Скроллбар ── */
-#translator-modal.tb-theme-mono-glass *::-webkit-scrollbar-thumb {
-    background: var(--tb-blue) !important;
+*::-webkit-scrollbar-thumb {
+    background: var(--ts-blue) !important;
     opacity: 0.45;
     border-radius: 3px;
 }
