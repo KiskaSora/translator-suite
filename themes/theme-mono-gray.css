@@ -1,0 +1,233 @@
+/* ════════════════════════════════════════════════════════════
+   Translator Suite — Тема «MONO GRAY»
+   Моно-серая палитра + бургунди-акцент + пунктирные
+   голубые границы на всех UI-элементах.
+   Справа на каждом окне — слот для своей PNG-картинки
+   через CSS-переменную --ts-side-img.
+   ────────────────────────────────────────────────────────────
+   Подключение: вставьте этот CSS в раздел «Настройки → CSS»
+   расширения Translator Suite (или подключите файл).
+   Чтобы поставить свою картинку справа:
+       :root { --ts-side-img: url("https://example.com/pic.png"); }
+   ════════════════════════════════════════════════════════════ */
+
+:root {
+    /* Палитра моно-серая */
+    --ts-bg:        #1a1a1a;
+    --ts-cardBg:    #232323;
+    --ts-surfaceBg: #2c2c2c;
+    --ts-text:      #e6e6e6;
+    --ts-textMuted: #8a8a8a;
+    --ts-border:    #3a3a3a;
+
+    /* Акценты: бургунди + голубой (сочетающаяся пара) */
+    --ts-burgundy:  #8b1f3a;   /* основной акцент — слова, заголовки */
+    --ts-burgundy-2:#a83253;   /* hover */
+    --ts-blue:      #6fb3d6;   /* пунктирные границы, детали */
+    --ts-blue-soft: rgba(111, 179, 214, 0.18);
+
+    --ts-accent:    var(--ts-burgundy);
+    --ts-addBtn:    var(--ts-burgundy);
+    --ts-closBtn:   #2c2c2c;
+
+    --ts-radius:    14px;
+    --ts-spring:    cubic-bezier(0.34, 1.4, 0.64, 1);
+    --ts-shadow:    0 24px 70px rgba(0,0,0,0.85),
+                    0 0 0 1px rgba(255,255,255,0.03);
+
+    /* ── СЛОТ ДЛЯ КАРТИНКИ СПРАВА ── */
+    --ts-side-img:        none;       /* url("...") */
+    --ts-side-img-w:      120px;      /* ширина */
+    --ts-side-img-opacity: 0.85;
+    --ts-side-img-pos:    bottom right; /* позиция */
+}
+
+/* ── Общий фон оверлея — чуть теплее ── */
+#ts-overlay, #ts-vo, #ts-so, #ts-to, #ts-fm {
+    background: rgba(10, 10, 10, 0.78) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+}
+
+/* ── Карточки: моно-серая поверхность + голубой пунктир ── */
+#ts-card, #ts-vp, #ts-tp, #ts-sp, #ts-fm-card {
+    background: var(--ts-cardBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    box-shadow: var(--ts-shadow),
+                inset 0 0 0 1px rgba(255,255,255,0.02) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+/* ── PNG-картинка справа (декор) ── */
+#ts-card::after,
+#ts-vp::after,
+#ts-tp::after,
+#ts-sp::after,
+#ts-fm-card::after {
+    content: "";
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    width: var(--ts-side-img-w);
+    height: var(--ts-side-img-w);
+    background-image: var(--ts-side-img);
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: var(--ts-side-img-pos);
+    opacity: var(--ts-side-img-opacity);
+    pointer-events: none;
+    z-index: 0;
+    filter: grayscale(0.1);
+}
+/* Контент должен быть выше картинки */
+#ts-card > *, #ts-vp > *, #ts-tp > *, #ts-sp > *, #ts-fm-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Заголовки слов и переводов: бургунди ── */
+#ts-title           { color: #f0f0f0 !important; }
+#ts-tr,
+#ts-cru strong,
+.ts-vw, .ts-vt, .ts-va,
+.ts-arr, .ts-qi {
+    color: var(--ts-burgundy) !important;
+}
+
+/* ── Иконочные кнопки: пунктир голубой ── */
+.ts-hb {
+    background: var(--ts-surfaceBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-blue) !important;
+}
+.ts-hb:hover {
+    background: var(--ts-burgundy) !important;
+    border-color: var(--ts-burgundy-2) !important;
+    color: #fff !important;
+}
+
+/* ── Главные кнопки ── */
+#ts-badd,
+#ts-s-save,
+.ts-fm-primary {
+    background: var(--ts-burgundy) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: #fff !important;
+}
+#ts-badd:hover,
+#ts-s-save:hover,
+.ts-fm-primary:hover:not(:disabled) {
+    background: var(--ts-burgundy-2) !important;
+    opacity: 1 !important;
+}
+
+#ts-bclose,
+.ts-fm-secondary {
+    background: var(--ts-surfaceBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-textMuted) !important;
+}
+
+/* ── Поля ввода / селекты / textarea ── */
+#ts-vq,
+.ts-sfield select,
+.ts-sfield > input,
+.ts-sfield textarea,
+.ts-pw > input,
+.ts-fm-col textarea,
+.ts-ctxt,
+#ts-s-css {
+    background: var(--ts-surfaceBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-text) !important;
+}
+#ts-vq:focus,
+.ts-sfield select:focus,
+.ts-sfield input:focus,
+.ts-sfield textarea:focus,
+.ts-pw > input:focus,
+.ts-fm-col textarea:focus,
+.ts-ctxt:focus,
+#ts-s-css:focus {
+    border-color: var(--ts-burgundy) !important;
+    border-style: solid !important;
+    box-shadow: 0 0 0 3px var(--ts-blue-soft) !important;
+}
+
+/* ── Разделители ── */
+.ts-vhead,
+#ts-vsearch,
+#ts-shead,
+#ts-stabs,
+#ts-sfooter,
+.ts-ve {
+    border-color: var(--ts-blue) !important;
+    border-style: dashed !important;
+}
+
+/* ── Вкладки настроек ── */
+.ts-stab.ts-son {
+    color: var(--ts-burgundy) !important;
+    border-bottom: 2px dashed var(--ts-blue) !important;
+    background: rgba(139, 31, 58, 0.10) !important;
+}
+
+/* ── Toggle-строки ── */
+.ts-toggle-row {
+    background: var(--ts-surfaceBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+}
+.ts-toggle-row:hover { border-color: var(--ts-burgundy) !important; }
+.ts-toggle-title i  { color: var(--ts-burgundy) !important; }
+.ts-switch input:checked + .ts-slider { background: var(--ts-burgundy) !important; }
+
+/* ── Цветные карточки в настройках ── */
+.ts-cr {
+    background: var(--ts-surfaceBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+}
+
+/* ── Подсветка слов в чате ── */
+mark.ts-highlight {
+    border-bottom: 2px dashed var(--ts-blue) !important;
+}
+mark.ts-highlight:hover {
+    background: rgba(139, 31, 58, 0.18) !important;
+}
+
+/* ── FAB (избранное) ── */
+#ts-fab-btn {
+    background: var(--ts-cardBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-burgundy) !important;
+}
+
+/* ── Кнопка в углу textarea (модуль «Поля») ── */
+.ts-field-btn {
+    background: var(--ts-cardBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-burgundy) !important;
+}
+.ts-field-btn:hover {
+    background: var(--ts-burgundy) !important;
+    border-color: var(--ts-burgundy-2) !important;
+    color: #fff !important;
+}
+
+/* ── Toast ── */
+#ts-toast {
+    background: var(--ts-cardBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-text) !important;
+}
+
+/* ── Бэйдж ── */
+.ts-badge {
+    background: var(--ts-surfaceBg) !important;
+    border: 1px dashed var(--ts-blue) !important;
+    color: var(--ts-blue) !important;
+}
+
+/* ── Скроллбар ── */
+*::-webkit-scrollbar-thumb { background: var(--ts-blue) !important; opacity: 0.4; }
