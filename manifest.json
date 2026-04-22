@@ -1,12 +1,14 @@
 {
-    "display_name": "Переводчик: Набор (слова + поля) 🌐",
+    "display_name": "Translator Suite 🌐",
+
     "loading_order": 1,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
     "author": "Custom",
-    "version": "1.0.0",
+    "version": "1.0.1",
+
     "homePage": "",
     "auto_update": false
 }

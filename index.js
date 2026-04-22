@@ -1068,6 +1068,7 @@ function showToast(msg) {
 //   МОДУЛЬ «ПОЛЯ» — кнопка переводчика над текстареа
 // ──────────────────────────────────────────────────────────────
 const FIELD_BTN_SVG = `<i class="fa-solid fa-language"></i>`;
+const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
 function injectFieldBtn(ta) {
     if (!ta || ta.dataset.tsInjected) return;
@@ -1082,34 +1083,90 @@ function injectFieldBtn(ta) {
     document.body.appendChild(btn);
 
     let leaveTimer = null;
+    let rafId = null;
     function place() {
         const r = ta.getBoundingClientRect();
-        if (r.width < 10 || r.height < 10) { btn.classList.remove('ts-fb-visible'); return; }
-        btn.style.left = Math.round(r.right - 32) + 'px';
-        btn.style.top  = Math.round(r.bottom - 32) + 'px';
+        const vw = window.innerWidth, vh = window.innerHeight;
+        // Спрятать, если поле невидимо или вне вьюпорта
+        if (r.width < 10 || r.height < 10 || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) {
+            btn.classList.remove('ts-fb-visible');
+            return;
+        }
+        let left = Math.round(r.right - 32);
+        let top  = Math.round(r.bottom - 32);
+        // Удержание в пределах экрана (на мобильных при открытой клавиатуре)
+        left = Math.max(4, Math.min(vw - 32, left));
+        top  = Math.max(4, Math.min(vh - 32, top));
+        btn.style.left = left + 'px';
+        btn.style.top  = top + 'px';
+    }
+    function schedulePlace() {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => { rafId = null; place(); });
     }
     function show() {
         if (!cfg().modFields) return;
         clearTimeout(leaveTimer);
-        if (!document.contains(ta)) { btn.remove(); return; }
+        if (!document.contains(ta)) { btn.remove(); cleanup(); return; }
         place(); btn.classList.add('ts-fb-visible');
     }
-    function hide(delay) { leaveTimer = setTimeout(() => btn.classList.remove('ts-fb-visible'), delay || 120); }
+    function hide(delay) {
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => btn.classList.remove('ts-fb-visible'), delay || 120);
+    }
+    function cleanup() {
+        window.removeEventListener('scroll', schedulePlace, true);
+        window.removeEventListener('resize', schedulePlace);
+    }
 
+    // Десктопные события (hover)
     ta.addEventListener('mouseenter', show);
-    ta.addEventListener('mousemove',  place);
+    ta.addEventListener('mousemove',  schedulePlace);
     ta.addEventListener('mouseleave', e => { if (e.relatedTarget !== btn) hide(); });
-    ta.addEventListener('focus',      show);
-    ta.addEventListener('blur',       () => hide(300));
     btn.addEventListener('mouseenter', () => clearTimeout(leaveTimer));
     btn.addEventListener('mouseleave', () => hide());
-    btn.addEventListener('click', e => {
+
+    // Универсальные события — работают и на мобильных
+    ta.addEventListener('focus', show);
+    ta.addEventListener('input', schedulePlace);
+    ta.addEventListener('touchstart', show, { passive: true });
+
+    // На мобильных НЕ скрываем по blur (иначе тап по кнопке теряет клик).
+    // Скрытие — по тапу вне textarea/кнопки (см. ниже).
+    if (!IS_TOUCH) {
+        ta.addEventListener('blur', () => hide(300));
+    }
+
+    // Перепозиционирование при скролле/ресайзе/появлении клавиатуры
+    window.addEventListener('scroll', schedulePlace, true);
+    window.addEventListener('resize', schedulePlace);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', schedulePlace);
+        window.visualViewport.addEventListener('scroll', schedulePlace);
+    }
+
+    // Клик и тап по самой кнопке
+    function activate(e) {
         e.preventDefault(); e.stopPropagation();
         activeTA = ta;
         btn.classList.remove('ts-fb-visible');
         openFieldModal(ta.value);
-    });
+    }
+    btn.addEventListener('click', activate);
+    btn.addEventListener('touchend', activate, { passive: false });
+    // Не даём textarea потерять фокус при тапе по кнопке
+    btn.addEventListener('mousedown',  e => e.preventDefault());
+    btn.addEventListener('touchstart', e => { e.preventDefault(); show(); }, { passive: false });
 }
+
+// Глобально: на мобильных скрываем все кнопки полей при тапе вне поля и кнопки
+document.addEventListener('touchstart', function(e) {
+    if (!IS_TOUCH) return;
+    const t = e.target;
+    if (t.closest && (t.closest('.ts-field-btn') || t.tagName === 'TEXTAREA')) return;
+    document.querySelectorAll('.ts-field-btn.ts-fb-visible').forEach(b => b.classList.remove('ts-fb-visible'));
+}, { passive: true, capture: true });
+
 
 function scanFieldsAndInject() {
     if (!cfg().modFields) return;
