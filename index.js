@@ -6,7 +6,7 @@
 //  Единая система кастомизации (цвета + Custom CSS).
 // ══════════════════════════════════════════════════════════════
 import { extension_settings, getContext } from '../../../extensions.js';
-import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
+import { saveSettingsDebounced, eventSource, event_types, getRequestHeaders } from '../../../../script.js';
 
 const EXT = 'translator-suite';
 
@@ -35,25 +35,53 @@ const COLOR_FIELDS = [
     { key: 'border',    label: 'Цвет границы' },
 ];
 
+// ── Обёртка над fetch: таймаут + внятная диагностика "Failed to fetch" ──
+// Голый TypeError "Failed to fetch" ничего не говорит о причине (сеть недоступна,
+// провайдер заблокирован, CORS, протух ключ и сервер не вернул CORS-заголовки
+// на ошибке и т.п.) — эта обёртка добавляет таймаут и дописывает в текст ошибки
+// хост и причину, чтобы было видно, где именно рвётся запрос.
+async function tsFetch(url, opts, timeoutMs) {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), timeoutMs || 15000);
+    const host = (function(){ try { return new URL(url).host; } catch(_) { return url; } })();
+    try {
+        return await fetch(url, Object.assign({}, opts, { signal: ac.signal }));
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            throw new Error('Таймаут запроса к ' + host + ' (нет ответа за ' + Math.round((timeoutMs || 15000)/1000) + 'с). Провайдер недоступен или заблокирован сетью/провайдером/VPN.');
+        }
+        // TypeError "Failed to fetch" почти всегда значит одно из:
+        //  1) хост недоступен (блокировка на уровне сети/ISP/DNS),
+        //  2) CORS — сервер не добавил Access-Control-Allow-Origin (особенно
+        //     часто на ответах с ошибкой авторизации, из-за чего реальный
+        //     401/403 маскируется под "Failed to fetch"),
+        //  3) смешанный контент (страница на https, а сервер отдан по http).
+        throw new Error('Не удалось подключиться к ' + host + ' (' + e.message + '). '
+            + 'Проверь: 1) доступен ли ' + host + ' в браузере/через VPN, '
+            + '2) не блокирует ли его блокировщик рекламы/приватности (проверь консоль DevTools на ERR_BLOCKED_BY_CLIENT), '
+            + '3) корректен ли API-ключ — сервер мог отклонить запрос без CORS-заголовков, и тогда реальная причина (401/403) выглядит как "Failed to fetch".');
+    } finally {
+        clearTimeout(t);
+    }
+}
+
 // ── Провайдеры перевода (общие для обоих модулей) ────────────
 const PROVIDERS = {
     google: {
         label: 'Google Translate',
         needsKey: false, needsUrl: false,
-        info: '✅ Бесплатно, без регистрации. Неофициальный публичный endpoint.',
+        info: '✅ Бесплатно. Через backend Таверны — как встроенный переводчик ST.',
         async fn(text, tl, sl) {
             const chunks = splitText(text, 4500);
             const results = [];
             for (const chunk of chunks) {
-                const r = await fetch(
-                    'https://translate.googleapis.com/translate_a/single'
-                    + '?client=gtx&sl=' + encodeURIComponent(sl || 'auto')
-                    + '&tl=' + encodeURIComponent(tl)
-                    + '&dt=t&q=' + encodeURIComponent(chunk)
-                );
-                if (!r.ok) throw new Error('Google HTTP ' + r.status);
-                const data = await r.json();
-                results.push((data[0] || []).map(x => x[0] || '').join(''));
+                const r = await tsFetch('/api/translate/google', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ text: chunk, lang: tl }),
+                });
+                if (!r.ok) throw new Error('Google HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
             }
             return results.join('\n');
         }
@@ -62,14 +90,14 @@ const PROVIDERS = {
         label: 'MyMemory',
         needsKey: false, needsUrl: false,
         keyLabel: 'Email (необязательно, увеличивает лимит)',
-        info: '✅ Бесплатно. 1000 запросов/день без email, больше — с email.',
+        info: '✅ Бесплатно. Прямой запрос из браузера (у ST нет backend-роута для MyMemory) — 1000 запросов/день без email.',
         async fn(text, tl, sl, key) {
             const src = (sl && sl !== 'auto') ? sl : 'en';
             const url = 'https://api.mymemory.translated.net/get'
                 + '?q=' + encodeURIComponent(text)
                 + '&langpair=' + encodeURIComponent(src) + '|' + encodeURIComponent(tl)
                 + (key ? '&de=' + encodeURIComponent(key) : '');
-            const r = await fetch(url);
+            const r = await tsFetch(url);
             if (!r.ok) throw new Error('MyMemory HTTP ' + r.status);
             const j = await r.json();
             if (j.responseStatus !== 200) throw new Error(j.responseMessage || 'Ошибка MyMemory');
@@ -78,74 +106,130 @@ const PROVIDERS = {
     },
     libre: {
         label: 'LibreTranslate',
-        needsKey: false, needsUrl: true,
-        keyLabel: 'API-ключ (если требует сервер)',
-        urlLabel: 'URL сервера LibreTranslate',
-        urlPlaceholder: 'https://libretranslate.de',
-        info: '🔧 Открытый движок. Публичные серверы: libretranslate.de, translate.argosopentech.com',
-        async fn(text, tl, sl, key, url) {
-            const base = (url || 'https://libretranslate.de').replace(/\/$/, '');
-            const body = { q: text, source: sl || 'auto', target: tl, format: 'text' };
-            if (key) body.api_key = key;
-            const r = await fetch(base + '/translate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            if (!r.ok) throw new Error('LibreTranslate HTTP ' + r.status);
-            const j = await r.json();
-            if (j.error) throw new Error(j.error);
-            return j.translatedText;
+        needsKey: false, needsUrl: false,
+        info: '🔧 Через backend Таверны. URL/ключ сервера LibreTranslate задаётся в config.yaml самой ST.',
+        async fn(text, tl) {
+            const chunks = splitText(text, 4500);
+            const results = [];
+            for (const chunk of chunks) {
+                const r = await tsFetch('/api/translate/libre', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ text: chunk, lang: tl }),
+                });
+                if (!r.ok) throw new Error('LibreTranslate HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
+            }
+            return results.join('\n');
         }
     },
     deepl: {
         label: 'DeepL',
-        needsKey: true, needsUrl: false,
-        keyLabel: 'DeepL API-ключ (Free заканчивается на :fx)',
-        info: '🔑 Бесплатный ключ: deepl.com/pro-api → Free plan. 500 000 симв./месяц.',
-        async fn(text, tl, sl, key) {
-            if (!key) throw new Error('Укажи DeepL API-ключ в настройках');
-            const ep = key.endsWith(':fx')
-                ? 'https://api-free.deepl.com/v2/translate'
-                : 'https://api.deepl.com/v2/translate';
-            const body = { text: [text], target_lang: tl.toUpperCase() };
-            if (sl && sl !== 'auto') body.source_lang = sl.toUpperCase();
-            const r = await fetch(ep, {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'DeepL-Auth-Key ' + key,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-            if (!r.ok) throw new Error('DeepL HTTP ' + r.status);
-            return (await r.json()).translations[0].text;
+        needsKey: false, needsUrl: false,
+        info: '🔑 Через backend Таверны. Ключ задаётся один раз в самой ST: Extensions → Chat Translation → значок ключа у DeepL.',
+        async fn(text, tl) {
+            const chunks = splitText(text, 4500);
+            const results = [];
+            for (const chunk of chunks) {
+                const r = await tsFetch('/api/translate/deepl', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ text: chunk, lang: tl, endpoint: 'free' }),
+                });
+                if (!r.ok) throw new Error('DeepL HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
+            }
+            return results.join('\n');
         }
     },
     yandex: {
         label: 'Yandex Translate',
-        needsKey: true, needsUrl: false,
-        keyLabel: 'IAM-токен или API-ключ Yandex Cloud',
-        info: '🔑 Ключ: console.yandex.cloud → Translate API. Первые 5 млн симв./месяц бесплатно.',
-        async fn(text, tl, sl, key) {
-            if (!key) throw new Error('Укажи Yandex API-ключ в настройках');
-            const body = {
-                texts: [text],
-                targetLanguageCode: tl,
-                ...(sl && sl !== 'auto' ? { sourceLanguageCode: sl } : {})
-            };
-            const r = await fetch('https://translate.api.cloud.yandex.net/translate/v2/translate', {
+        needsKey: false, needsUrl: false,
+        info: '🔑 Через backend Таверны. Ключ задаётся один раз в самой ST: Extensions → Chat Translation → значок ключа у Yandex.',
+        async fn(text, tl) {
+            const chunks = splitText(text, 4500);
+            const results = [];
+            for (const chunk of chunks) {
+                const r = await tsFetch('/api/translate/yandex', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ chunks: [chunk], lang: tl }),
+                });
+                if (!r.ok) throw new Error('Yandex HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
+            }
+            return results.join('\n');
+        }
+    },
+    lingva: {
+        label: 'Lingva Translate',
+        needsKey: false, needsUrl: false,
+        info: '🔧 Через backend Таверны. Открытый фронтенд к Google Translate без слежки.',
+        async fn(text, tl) {
+            const chunks = splitText(text, 4500);
+            const results = [];
+            for (const chunk of chunks) {
+                const r = await tsFetch('/api/translate/lingva', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ text: chunk, lang: tl }),
+                });
+                if (!r.ok) throw new Error('Lingva HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
+            }
+            return results.join('\n');
+        }
+    },
+    bing: {
+        label: 'Bing Translate',
+        needsKey: false, needsUrl: false,
+        info: '🔧 Через backend Таверны. Бесплатный неофициальный endpoint Bing.',
+        async fn(text, tl) {
+            const chunks = splitText(text, 4500);
+            const results = [];
+            for (const chunk of chunks) {
+                const r = await tsFetch('/api/translate/bing', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ text: chunk, lang: tl }),
+                });
+                if (!r.ok) throw new Error('Bing HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
+            }
+            return results.join('\n');
+        }
+    },
+    deeplx: {
+        label: 'DeepLX',
+        needsKey: false, needsUrl: false,
+        info: '🔧 Через backend Таверны. Неофициальный бесплатный прокси к DeepL, URL настраивается в config.yaml ST.',
+        async fn(text, tl) {
+            const chunks = splitText(text, 4500);
+            const results = [];
+            for (const chunk of chunks) {
+                const r = await tsFetch('/api/translate/deeplx', {
+                    method: 'POST',
+                    headers: getRequestHeaders(),
+                    body: JSON.stringify({ text: chunk, lang: tl }),
+                });
+                if (!r.ok) throw new Error('DeepLX HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+                results.push(await r.text());
+            }
+            return results.join('\n');
+        }
+    },
+    onering: {
+        label: 'OneRing',
+        needsKey: false, needsUrl: false,
+        info: '🔧 Через backend Таверны. Требует настроенный OneRing-сервер в config.yaml ST.',
+        async fn(text, tl, sl) {
+            const r = await tsFetch('/api/translate/onering', {
                 method: 'POST',
-                headers: {
-                    'Authorization': 'Api-Key ' + key,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
+                headers: getRequestHeaders(),
+                body: JSON.stringify({ text: text, from_lang: (sl && sl !== 'auto') ? sl : 'auto', to_lang: tl }),
             });
-            if (!r.ok) throw new Error('Yandex HTTP ' + r.status);
-            const j = await r.json();
-            if (j.message) throw new Error(j.message);
-            return j.translations[0].text;
+            if (!r.ok) throw new Error('OneRing HTTP ' + r.status + ' (' + (await r.text().catch(()=> r.statusText)) + ')');
+            return await r.text();
         }
     },
     custom: {
@@ -154,7 +238,7 @@ const PROVIDERS = {
         keyLabel: 'API-ключ',
         urlLabel: 'URL сервера / прокси',
         urlPlaceholder: 'https://api.openai.com',
-        info: '🤖 Любой OpenAI-совместимый эндпоинт: OpenAI, локальный Ollama, прокси и т.п.',
+        info: '🤖 Прямой запрос из браузера на твой эндпоинт (у ST нет backend-роута для произвольного AI-провайдера).',
         async fn(text, tl, sl, key, url, extra) {
             if (!url)   throw new Error('Не указан URL сервера');
             const model = (extra && extra.model) || '';
@@ -164,7 +248,7 @@ const PROVIDERS = {
                 ? 'Определи язык оригинала автоматически'
                 : 'с языка ' + langName(sl);
             const userMsg = `Переведи следующий текст ${srcStr} на ${langName(tl)}:\n\n${text}`;
-            const r = await fetch(url.replace(/\/$/, '') + '/v1/chat/completions', {
+            const r = await tsFetch(url.replace(/\/$/, '') + '/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
                 body: JSON.stringify({
@@ -190,6 +274,12 @@ const PROVIDERS = {
         }
     }
 };
+
+// ── Порядок автофоллбэка ──────────────────────────────────────
+// Если выбранный провайдер падает — пробуем остальные бесплатные backend-провайдеры
+// по очереди. 'custom' (свой AI) и 'mymemory' (лимит 1000/день, ключ-email) в
+// автосписок не включаем — их подключают осознанно, не как запасной вариант.
+const AUTO_FALLBACK_ORDER = ['google', 'yandex', 'libre', 'lingva', 'bing', 'deeplx', 'deepl', 'onering'];
 
 const DEFAULT_CUSTOM_PROMPT =
 `Ты — профессиональный движок перевода. Твоя ЕДИНСТВЕННАЯ задача — переводить текст.
@@ -286,6 +376,9 @@ if (!extension_settings[EXT]) {
         modWords: true,
         modFields: true,
 
+        // Автофоллбэк провайдеров при ошибке
+        autoFallback: true,
+
         // Настройки модуля «Слова»
         vocabulary: [], treasures: [],
         highlightSaved: true, treasuresEnabled: false,
@@ -305,6 +398,7 @@ if (_s.highlightSaved === undefined)   _s.highlightSaved     = true;
 if (_s.treasuresEnabled === undefined) _s.treasuresEnabled   = false;
 if (_s.modWords === undefined)         _s.modWords           = true;
 if (_s.modFields === undefined)        _s.modFields          = true;
+if (_s.autoFallback === undefined)     _s.autoFallback       = true;
 
 const cfg = () => extension_settings[EXT];
 
@@ -370,6 +464,15 @@ function getSentenceFromSelection() {
     return text.slice(start, end).trim();
 }
 
+// Склонение "раз/раза" для счётчика встречаемости (1 раз, 2 раза, 5 раз…)
+function timesRu(n) {
+    n = Math.abs(n) % 100;
+    const n1 = n % 10;
+    if (n > 10 && n < 20) return 'раз';
+    if (n1 > 1 && n1 < 5) return 'раза';
+    return 'раз';
+}
+
 function highlight(sentence, word) {
     const r = esc(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return esc(sentence).replace(new RegExp('(' + r + ')', 'gi'), '<strong>$1</strong>');
@@ -378,6 +481,25 @@ function highlight(sentence, word) {
 function getChatName() {
     try { const ctx = getContext(); return (ctx && ctx.name2) ? ctx.name2 : 'Таверна'; }
     catch(e) { return 'Таверна'; }
+}
+
+// Считает, сколько раз слово встречается в открытом чате (по всем сообщениям).
+// \p{L}/\p{N} вместо \b — чтобы границы слова работали и для кириллицы, не только latin.
+function countInChat(word) {
+    if (!word) return 0;
+    try {
+        const ctx = getContext();
+        const chat = (ctx && ctx.chat) || [];
+        const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp('(?<![\\p{L}\\p{N}_])' + esc + '(?![\\p{L}\\p{N}_])', 'giu');
+        let count = 0;
+        for (const m of chat) {
+            const text = (m && m.mes) || '';
+            const matches = text.match(re);
+            if (matches) count += matches.length;
+        }
+        return count;
+    } catch (e) { return 0; }
 }
 
 // ── Применение стилей ────────────────────────────────────────
@@ -478,6 +600,7 @@ function buildUiHtml() {
         </button>
       </div>
     </div>
+    <div class="ts-note" id="ts-count" style="display:none"></div>
     <div id="ts-trow">
       <i class="fa-solid fa-arrow-right-long ts-arr"></i>
       <span id="ts-tr"></span>
@@ -630,6 +753,13 @@ function buildUiHtml() {
         <label><i class="fa-solid fa-globe"></i> Провайдер перевода</label>
         <select id="ts-s-provider">${pOpts}</select>
       </div>
+      <div class="ts-toggle-row">
+        <div class="ts-toggle-info">
+          <span class="ts-toggle-title"><i class="fa-solid fa-shuffle"></i> Автофоллбэк</span>
+          <span class="ts-toggle-desc">Если выбранный провайдер не ответил — автоматически пробовать остальные бесплатные</span>
+        </div>
+        <label class="ts-switch"><input type="checkbox" id="ts-s-autofallback"><span class="ts-slider"></span></label>
+      </div>
       <div class="ts-sfield" id="ts-sf-key">
         <label id="ts-sl-key"><i class="fa-solid fa-key"></i> API-ключ</label>
         <div class="ts-pw">
@@ -714,6 +844,7 @@ function loadSettingsUI() {
     const c = cfg();
     $('#ts-s-modwords').prop('checked', !!c.modWords);
     $('#ts-s-modfields').prop('checked', !!c.modFields);
+    $('#ts-s-autofallback').prop('checked', c.autoFallback !== false);
     $('#ts-s-provider').val(c.provider || 'google');
     $('#ts-s-key').val(c.apiKey || '').attr('type', 'password');
     $('#ts-s-eye').find('i').attr('class', 'fa-solid fa-eye');
@@ -766,7 +897,7 @@ async function fetchModels() {
     const orig = $btn.html();
     $btn.html('<i class="fa-solid fa-circle-notch fa-spin"></i> Загрузка...');
     try {
-        const r = await fetch(url + '/v1/models', {
+        const r = await tsFetch(url + '/v1/models', {
             headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' }
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -787,6 +918,7 @@ function saveSettingsFromUI() {
     const c = cfg();
     c.modWords         = !!$('#ts-s-modwords').prop('checked');
     c.modFields        = !!$('#ts-s-modfields').prop('checked');
+    c.autoFallback     = !!$('#ts-s-autofallback').prop('checked');
     c.provider         = $('#ts-s-provider').val() || 'google';
     c.apiKey           = $('#ts-s-key').val() || '';
     c.libreUrl         = ($('#ts-s-url').val() || '').trim().replace(/\/$/, '');
@@ -818,12 +950,35 @@ function saveSettingsFromUI() {
 // ──────────────────────────────────────────────────────────────
 //   Карточка перевода слова
 // ──────────────────────────────────────────────────────────────
+
+// Провайдер, который реально отработал последний вызов translateWith
+// (может отличаться от cfg().provider, если сработал автофоллбэк).
+let lastProviderUsed = '';
+
 async function translateWith(text, sl, tl) {
     const c = cfg();
-    const provider = PROVIDERS[c.provider] || PROVIDERS.google;
-    return await provider.fn(text, tl, sl, c.apiKey || '', c.libreUrl || '', {
-        model: c.customModel, systemPrompt: c.customSystemPrompt
-    });
+    const extra = { model: c.customModel, systemPrompt: c.customSystemPrompt };
+    const runProvider = (id) => PROVIDERS[id].fn(text, tl, sl, c.apiKey || '', c.libreUrl || '', extra);
+
+    const primary = PROVIDERS[c.provider] ? c.provider : 'google';
+
+    if (!c.autoFallback) {
+        lastProviderUsed = primary;
+        return await runProvider(primary);
+    }
+
+    const order = [primary, ...AUTO_FALLBACK_ORDER.filter(id => id !== primary && PROVIDERS[id])];
+    const errors = [];
+    for (const id of order) {
+        try {
+            const result = await runProvider(id);
+            lastProviderUsed = id;
+            return result;
+        } catch (e) {
+            errors.push(PROVIDERS[id].label + ': ' + e.message);
+        }
+    }
+    throw new Error('Все провайдеры недоступны:\n' + errors.join('\n'));
 }
 
 async function showCard(word, $el) {
@@ -840,6 +995,12 @@ async function showCard(word, $el) {
         const fromSel = getSentenceFromSelection();
         cur.context = fromSel || getSentence($el.text() || '', word);
         cur.chat    = getChatName();
+        const seenCount = countInChat(word);
+        if (seenCount > 1) {
+            $('#ts-count').html('<i class="fa-solid fa-eye"></i> Встречается в «' + esc(cur.chat) + '»: ' + seenCount + ' ' + timesRu(seenCount)).show();
+        } else {
+            $('#ts-count').hide();
+        }
         const c  = cfg();
         const sl = c.sourceLang || 'auto';
         const tl = c.targetLang || 'ru';
@@ -1190,11 +1351,7 @@ function refreshFieldButtons() {
 }
 
 function updateFmBadge() {
-    const labels = {
-        google: 'Google Translate', mymemory: 'MyMemory', libre: 'LibreTranslate',
-        deepl: 'DeepL', yandex: 'Yandex', custom: 'Custom AI'
-    };
-    $('#ts-fm-badge').text(labels[cfg().provider] || cfg().provider);
+    $('#ts-fm-badge').text((PROVIDERS[cfg().provider] && PROVIDERS[cfg().provider].label) || cfg().provider);
 }
 
 function openFieldModal(text) {
@@ -1228,7 +1385,12 @@ async function doFieldTranslate() {
         const result = await translateWith(text, sl, tl);
         $('#ts-fm-result').val(result);
         $('#ts-fm-accept').prop('disabled', false);
-        setFmStatus('✓ Готово — проверь и при желании отредактируй.', 'ok');
+        if (lastProviderUsed && lastProviderUsed !== cfg().provider) {
+            const label = (PROVIDERS[lastProviderUsed] && PROVIDERS[lastProviderUsed].label) || lastProviderUsed;
+            setFmStatus('✓ Готово через ' + label + ' — основной провайдер не ответил, сработал автофоллбэк.', 'ok');
+        } else {
+            setFmStatus('✓ Готово — проверь и при желании отредактируй.', 'ok');
+        }
     } catch(e) {
         setFmStatus('Ошибка: ' + e.message, 'err');
     } finally {
