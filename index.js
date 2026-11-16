@@ -242,7 +242,7 @@ const PROVIDERS = {
             if (!url)   throw new Error('Не указан URL сервера');
             const model = (extra && extra.model) || '';
             if (!model) throw new Error('Не указана модель');
-            const sys = (extra && extra.systemPrompt) || DEFAULT_CUSTOM_PROMPT;
+            const sys = ((extra && extra.systemPrompt) || DEFAULT_CUSTOM_PROMPT) + ((extra && extra.genderNote) ? '\n\n' + extra.genderNote : '');
             const srcStr = (!sl || sl === 'auto')
                 ? 'Определи язык оригинала автоматически'
                 : 'с языка ' + langName(sl);
@@ -291,6 +291,41 @@ const DEFAULT_CUSTOM_PROMPT =
 • НЕ добавляй примечаний, пояснений или комментариев переводчика.
 • НЕ оборачивай результат в кавычки или код-блоки.
 • Выводи ТОЛЬКО переведённый текст — ничего до, ничего после.`;
+
+// ── Род юзера и персонажа: подсказка для Custom AI ───────────
+// Обычные переводчики (Google и т.п.) не принимают инструкций, поэтому работает
+// только с Custom AI. author: 'user' | 'char' | '' (неизвестно / не чат).
+function buildGenderNote(author) {
+    const c = cfg();
+    const ug = (c.userGender === 'male' || c.userGender === 'female') ? c.userGender : '';
+    const cg = (c.charGender === 'male' || c.charGender === 'female') ? c.charGender : '';
+    if (!ug && !cg) return '';
+    const word = g => g === 'male' ? 'мужчина' : 'женщина';
+    const rod  = g => g === 'male' ? 'мужском' : 'женском';
+    const ex   = g => g === 'male' ? '«я пошёл», «ты пришёл», «он сказал»' : '«я пошла», «ты пришла», «она сказала»';
+    const lines = [];
+    if (ug) {
+        if (author === 'user')      lines.push('Текст написан от лица {{user}} (' + word(ug) + '). Всё, что {{user}} говорит и делает от первого лица, пиши в ' + rod(ug) + ' роде (' + ex(ug) + ').');
+        else if (author === 'char') lines.push('{{user}} — ' + word(ug) + '. Всё, что в тексте относится к {{user}} (обращение «ты/вы», «you», «he/she» про {{user}}), пиши в ' + rod(ug) + ' роде (' + ex(ug) + ').');
+        else                        lines.push('{{user}} — ' + word(ug) + '. Если речь идёт о {{user}} (от первого лица или как «ты/вы»), пиши в ' + rod(ug) + ' роде (' + ex(ug) + ').');
+    }
+    if (cg) {
+        if (author === 'char')      lines.push('Текст написан от лица {{char}} (' + word(cg) + '). Всё, что {{char}} говорит и делает от первого лица, пиши в ' + rod(cg) + ' роде (' + ex(cg) + ').');
+        else if (author === 'user') lines.push('{{char}} — ' + word(cg) + '. Всё, что в тексте относится к {{char}} (обращение «ты/вы», «you», «he/she» про {{char}}), пиши в ' + rod(cg) + ' роде (' + ex(cg) + ').');
+        else                        lines.push('{{char}} — ' + word(cg) + '. Если речь идёт о {{char}} (от первого лица или как «ты/вы»), пиши в ' + rod(cg) + ' роде (' + ex(cg) + ').');
+    }
+    return 'РОД УЧАСТНИКОВ ДИАЛОГА:\n' + lines.join('\n')
+         + '\nРод остальных персонажей определяй по контексту оригинала. Правило касается только согласования слов, смысл и тон не меняй.';
+}
+
+// Автор сообщения по DOM: .mes[is_user="true"] — реплика юзера
+function getMsgAuthor($el) {
+    try {
+        const $m = $($el).closest('.mes');
+        if (!$m.length) return '';
+        return $m.attr('is_user') === 'true' ? 'user' : 'char';
+    } catch(e) { return ''; }
+}
 
 const ALL_LANGUAGES = [
     { code: 'auto', label: 'Авто-определение' },
@@ -369,6 +404,7 @@ if (!extension_settings[EXT]) {
         provider: 'google', apiKey: '', libreUrl: '',
         sourceLang: 'auto', targetLang: 'ru',
         customModel: '', customSystemPrompt: DEFAULT_CUSTOM_PROMPT,
+        userGender: '', charGender: '',
         colors: {}, colorsVersion: 2,
 
         // Модули — включены оба по умолчанию
@@ -398,6 +434,8 @@ if (!_s.targetLang)                    _s.targetLang         = 'ru';
 if (_s.sourceLang === undefined)       _s.sourceLang         = 'auto';
 if (_s.customModel === undefined)      _s.customModel        = '';
 if (_s.customSystemPrompt === undefined) _s.customSystemPrompt = DEFAULT_CUSTOM_PROMPT;
+if (_s.userGender === undefined)       _s.userGender         = '';
+if (_s.charGender === undefined)       _s.charGender         = '';
 if (!_s.vocabulary)                    _s.vocabulary         = [];
 if (!_s.treasures)                     _s.treasures          = [];
 if (_s.highlightSaved === undefined)   _s.highlightSaved     = true;
@@ -889,6 +927,24 @@ function buildUiHtml() {
         <label><i class="fa-solid fa-comment"></i> Системный промпт</label>
         <textarea id="ts-s-sysprompt" rows="6"></textarea>
       </div>
+      <div class="ts-sfield ts-sf-gender">
+        <label><i class="fa-solid fa-venus-mars"></i> Пол юзера (для правильных окончаний)</label>
+        <select id="ts-s-gender" class="text_pole">
+          <option value="">Не указан</option>
+          <option value="male">Мужской — «я пошёл», «ты пришёл»</option>
+          <option value="female">Женский — «я пошла», «ты пришла»</option>
+        </select>
+        <div class="ts-note">Работает только с Custom AI: обычные переводчики не принимают инструкций. Реплики юзера переводятся от его лица, реплики персонажа — с обращением к юзеру в нужном роде.</div>
+      </div>
+      <div class="ts-sfield ts-sf-gender">
+        <label><i class="fa-solid fa-venus-mars"></i> Пол персонажа</label>
+        <select id="ts-s-chargender" class="text_pole">
+          <option value="">Не указан</option>
+          <option value="male">Мужской — «я сказал», «ты пришёл»</option>
+          <option value="female">Женский — «я сказала», «ты пришла»</option>
+        </select>
+        <div class="ts-note">Пол текущего персонажа чата. Его реплики переводятся от его лица, а обращения юзера к нему — в нужном роде. Для групповых чатов лучше оставить «Не указан».</div>
+      </div>
       <div class="ts-sfield">
         <label><i class="fa-solid fa-magnifying-glass"></i> Я читаю на</label>
         <select id="ts-s-sourcelang">${slOpts}</select>
@@ -960,6 +1016,8 @@ function loadSettingsUI() {
     $('#ts-s-url').val(c.libreUrl || '');
     $('#ts-s-model').val(c.customModel || '');
     $('#ts-s-sysprompt').val(c.customSystemPrompt || DEFAULT_CUSTOM_PROMPT);
+    $('#ts-s-gender').val(c.userGender || '');
+    $('#ts-s-chargender').val(c.charGender || '');
     $('#ts-s-sourcelang').val(c.sourceLang || 'auto');
     $('#ts-s-lang').val(c.targetLang || 'ru');
     $('#ts-s-highlight').prop('checked', c.highlightSaved !== false);
@@ -993,8 +1051,8 @@ function updateProviderUI() {
         if (p.urlPlaceholder) $('#ts-s-url').attr('placeholder', p.urlPlaceholder);
     } else $('#ts-sf-url').hide();
 
-    if (p.hasModel) { $('#ts-sf-model').show(); $('#ts-sf-sysprompt').show(); }
-    else            { $('#ts-sf-model').hide(); $('#ts-sf-sysprompt').hide(); }
+    if (p.hasModel) { $('#ts-sf-model').show(); $('#ts-sf-sysprompt').show(); $('.ts-sf-gender').show(); }
+    else            { $('#ts-sf-model').hide(); $('#ts-sf-sysprompt').hide(); $('.ts-sf-gender').hide(); }
 
     if (p.info) $('#ts-s-pinfo').text(p.info).show();
     else        $('#ts-s-pinfo').hide();
@@ -1035,6 +1093,8 @@ function saveSettingsFromUI() {
     c.libreUrl         = ($('#ts-s-url').val() || '').trim().replace(/\/$/, '');
     c.customModel      = ($('#ts-s-model').val() || '').trim();
     c.customSystemPrompt = $('#ts-s-sysprompt').val() || DEFAULT_CUSTOM_PROMPT;
+    c.userGender       = $('#ts-s-gender').val() || '';
+    c.charGender       = $('#ts-s-chargender').val() || '';
     c.sourceLang       = $('#ts-s-sourcelang').val() || 'auto';
     c.targetLang       = $('#ts-s-lang').val() || 'ru';
     c.highlightSaved   = !!$('#ts-s-highlight').prop('checked');
@@ -1061,9 +1121,9 @@ function saveSettingsFromUI() {
 // (может отличаться от cfg().provider, если сработал автофоллбэк).
 let lastProviderUsed = '';
 
-async function translateWith(text, sl, tl) {
+async function translateWith(text, sl, tl, opts) {
     const c = cfg();
-    const extra = { model: c.customModel, systemPrompt: c.customSystemPrompt };
+    const extra = { model: c.customModel, systemPrompt: c.customSystemPrompt, genderNote: buildGenderNote(opts && opts.author) };
     const runProvider = (id) => PROVIDERS[id].fn(text, tl, sl, c.apiKey || '', c.libreUrl || '', extra);
 
     const primary = PROVIDERS[c.provider] ? c.provider : 'google';
@@ -1088,10 +1148,10 @@ async function translateWith(text, sl, tl) {
 }
 
 // Перевод длинного текста кусками, чтобы не упереться в лимиты провайдеров
-async function translateLong(text, sl, tl) {
+async function translateLong(text, sl, tl, opts) {
     const parts = splitText(text, 1800);
     const out = [];
-    for (const part of parts) out.push(await translateWith(part, sl, tl));
+    for (const part of parts) out.push(await translateWith(part, sl, tl, opts));
     return out.join('\n\n');
 }
 
@@ -1130,9 +1190,10 @@ async function showCard(word, $el, ctx) {
         const c  = cfg();
         const sl = c.sourceLang || 'auto';
         const tl = c.targetLang || 'ru';
+        const opts = { author: getMsgAuthor($el) };
         const [wt, st] = await Promise.all([
-            translateWith(word,        sl, tl),
-            translateWith(cur.context, sl, tl)
+            translateWith(word,        sl, tl),               // одно слово — без инструкции про род
+            translateWith(cur.context, sl, tl, opts)
         ]);
         if (cur.word !== word || cur.mode !== 'word') return;   // карточку уже переключили/сменили
         cur.translation = wt;
@@ -1165,7 +1226,7 @@ async function showParagraph(text, $el, ctx) {
     const token = cur;
     try {
         const c = cfg();
-        const tr = await translateLong(text, c.sourceLang || 'auto', c.targetLang || 'ru');
+        const tr = await translateLong(text, c.sourceLang || 'auto', c.targetLang || 'ru', { author: getMsgAuthor($el) });
         if (cur !== token) return;
         $('#ts-tr').text(tr);
     } catch(e) {
