@@ -405,6 +405,7 @@ if (!extension_settings[EXT]) {
         sourceLang: 'auto', targetLang: 'ru',
         customModel: '', customSystemPrompt: DEFAULT_CUSTOM_PROMPT,
         userGender: '', charGender: '',
+        cacheEnabled: true, cacheMax: 300, tcache: [],
         colors: {}, colorsVersion: 2,
 
         // Модули — включены оба по умолчанию
@@ -436,6 +437,9 @@ if (_s.customModel === undefined)      _s.customModel        = '';
 if (_s.customSystemPrompt === undefined) _s.customSystemPrompt = DEFAULT_CUSTOM_PROMPT;
 if (_s.userGender === undefined)       _s.userGender         = '';
 if (_s.charGender === undefined)       _s.charGender         = '';
+if (_s.cacheEnabled === undefined)     _s.cacheEnabled       = true;
+if (!_s.cacheMax)                      _s.cacheMax           = 300;
+if (!Array.isArray(_s.tcache))         _s.tcache             = [];
 if (!_s.vocabulary)                    _s.vocabulary         = [];
 if (!_s.treasures)                     _s.treasures          = [];
 if (_s.highlightSaved === undefined)   _s.highlightSaved     = true;
@@ -733,6 +737,9 @@ function buildUiHtml() {
         <div class="ts-note" id="ts-count" style="display:none"></div>
       </div>
       <div class="ts-hbtns">
+        <button class="ts-hb" id="ts-btn-refresh" title="Перевести заново (мимо кеша)">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
         <button class="ts-hb" id="ts-btn-mode" title="Перевести весь абзац">
           <i class="fa-solid fa-paragraph"></i>
         </button>
@@ -865,6 +872,7 @@ function buildUiHtml() {
       <button class="ts-stab ts-son" data-t="modules"><i class="fa-solid fa-puzzle-piece"></i> Модули</button>
       <button class="ts-stab" data-t="general"><i class="fa-solid fa-language"></i> Перевод</button>
       <button class="ts-stab" data-t="reading"><i class="fa-solid fa-book"></i> Чтение</button>
+      <button class="ts-stab" data-t="cache"><i class="fa-solid fa-database"></i> Кеш</button>
       <button class="ts-stab" data-t="colors"><i class="fa-solid fa-palette"></i> Цвета</button>
     </div>
 
@@ -984,6 +992,35 @@ function buildUiHtml() {
       </div>
     </div>
 
+    <!-- ── Кеш ── -->
+    <div class="ts-spane" id="ts-spane-cache" style="display:none">
+      <div class="ts-toggle-row">
+        <div class="ts-toggle-info">
+          <span class="ts-toggle-title"><i class="fa-solid fa-database"></i> Кешировать переводы</span>
+          <span class="ts-toggle-desc">Уже переведённый текст берётся из кеша, без нового запроса к провайдеру</span>
+        </div>
+        <label class="ts-switch"><input type="checkbox" id="ts-s-cache"><span class="ts-slider"></span></label>
+      </div>
+      <div class="ts-sfield">
+        <label><i class="fa-solid fa-layer-group"></i> Сколько записей хранить</label>
+        <select id="ts-s-cachemax" class="text_pole">
+          <option value="100">100</option>
+          <option value="300">300</option>
+          <option value="1000">1000</option>
+        </select>
+        <div class="ts-note">Когда место кончается, самые старые записи удаляются сами.</div>
+      </div>
+      <div id="ts-cache-bar">
+        <div id="ts-vsearch">
+          <i class="fa-solid fa-magnifying-glass ts-si"></i>
+          <input id="ts-cq" type="text" placeholder="Поиск по кешу...">
+          <span id="ts-ccnt"></span>
+        </div>
+        <button id="ts-cache-clear" type="button"><i class="fa-solid fa-trash"></i> Очистить весь кеш</button>
+      </div>
+      <div id="ts-cache-list"></div>
+    </div>
+
     <!-- ── Цвета ── -->
     <div class="ts-spane" id="ts-spane-colors" style="display:none">
       <div class="ts-cssinfo">
@@ -1018,6 +1055,8 @@ function loadSettingsUI() {
     $('#ts-s-sysprompt').val(c.customSystemPrompt || DEFAULT_CUSTOM_PROMPT);
     $('#ts-s-gender').val(c.userGender || '');
     $('#ts-s-chargender').val(c.charGender || '');
+    $('#ts-s-cache').prop('checked', c.cacheEnabled !== false);
+    $('#ts-s-cachemax').val(String(c.cacheMax || 300));
     $('#ts-s-sourcelang').val(c.sourceLang || 'auto');
     $('#ts-s-lang').val(c.targetLang || 'ru');
     $('#ts-s-highlight').prop('checked', c.highlightSaved !== false);
@@ -1121,16 +1160,44 @@ function saveSettingsFromUI() {
 // (может отличаться от cfg().provider, если сработал автофоллбэк).
 let lastProviderUsed = '';
 
+// ── Кеш переводов ─────────────────────────────────────────────
+// Запись: { src, tr, meta, prov, sl, tl, ts }. meta = провайдер(+модель) | языки | род —
+// при смене любого из них старый перевод не подставляется.
+const cacheMeta = (prov, sl, tl, note) =>
+    [prov, prov === 'custom' ? (cfg().customModel || '') : '', sl || 'auto', tl, note || ''].join('|');
+
+function cacheFind(src, meta) {
+    return cfg().tcache.find(e => e.meta === meta && e.src === src);
+}
+function cachePut(src, tr, meta, prov, sl, tl) {
+    const c = cfg();
+    const old = cacheFind(src, meta);
+    if (old) c.tcache.splice(c.tcache.indexOf(old), 1);     // обновляем: переносим в конец
+    c.tcache.push({ src, tr, meta, prov, sl: sl || 'auto', tl, ts: Date.now() });
+    const max = Math.max(20, parseInt(c.cacheMax, 10) || 300);
+    if (c.tcache.length > max) c.tcache.splice(0, c.tcache.length - max);
+    saveSettingsDebounced();
+}
+
 async function translateWith(text, sl, tl, opts) {
     const c = cfg();
-    const extra = { model: c.customModel, systemPrompt: c.customSystemPrompt, genderNote: buildGenderNote(opts && opts.author) };
+    const note  = buildGenderNote(opts && opts.author);
+    const extra = { model: c.customModel, systemPrompt: c.customSystemPrompt, genderNote: note };
     const runProvider = (id) => PROVIDERS[id].fn(text, tl, sl, c.apiKey || '', c.libreUrl || '', extra);
 
     const primary = PROVIDERS[c.provider] ? c.provider : 'google';
+    const useCache = c.cacheEnabled !== false;
+    const noteFor  = id => id === 'custom' ? note : '';   // род влияет только на Custom AI
+
+    if (useCache && !(opts && opts.fresh)) {
+        const hit = cacheFind(text, cacheMeta(primary, sl, tl, noteFor(primary)));
+        if (hit) { lastProviderUsed = primary; return hit.tr; }
+    }
+    const store = (id, tr) => { if (useCache && tr) cachePut(text, tr, cacheMeta(id, sl, tl, noteFor(id)), id, sl, tl); return tr; };
 
     if (!c.autoFallback) {
         lastProviderUsed = primary;
-        return await runProvider(primary);
+        return store(primary, await runProvider(primary));
     }
 
     const order = [primary, ...AUTO_FALLBACK_ORDER.filter(id => id !== primary && PROVIDERS[id])];
@@ -1139,7 +1206,7 @@ async function translateWith(text, sl, tl, opts) {
         try {
             const result = await runProvider(id);
             lastProviderUsed = id;
-            return result;
+            return store(id, result);
         } catch (e) {
             errors.push(PROVIDERS[id].label + ': ' + e.message);
         }
@@ -1166,8 +1233,11 @@ function setCardMode(mode) {
         .find('i').attr('class', para ? 'fa-solid fa-font' : 'fa-solid fa-paragraph');
 }
 
+let freshOnce = false;   // true — следующий перевод карточки идёт мимо кеша («Перевести заново»)
+
 async function showCard(word, $el, ctx) {
     ctx = ctx || {};
+    const fresh = freshOnce; freshOnce = false;
     cur = { word: word, translation: '', context: '', contextTr: '', chat: '', mode: 'word', ctx: ctx, $el: $el };
     setCardMode('word');
     const already = cfg().vocabulary.some(e => e.word.toLowerCase() === word.toLowerCase());
@@ -1190,9 +1260,9 @@ async function showCard(word, $el, ctx) {
         const c  = cfg();
         const sl = c.sourceLang || 'auto';
         const tl = c.targetLang || 'ru';
-        const opts = { author: getMsgAuthor($el) };
+        const opts = { author: getMsgAuthor($el), fresh: fresh };
         const [wt, st] = await Promise.all([
-            translateWith(word,        sl, tl),               // одно слово — без инструкции про род
+            translateWith(word,        sl, tl, { fresh: fresh }),   // одно слово — без инструкции про род
             translateWith(cur.context, sl, tl, opts)
         ]);
         if (cur.word !== word || cur.mode !== 'word') return;   // карточку уже переключили/сменили
@@ -1211,6 +1281,7 @@ async function showCard(word, $el, ctx) {
 
 // Режим «весь абзац»: переводит абзац целиком, как бы он ни был оформлен
 async function showParagraph(text, $el, ctx) {
+    const fresh = freshOnce; freshOnce = false;
     text = (text || '').trim();
     if (!text) return;
     const keep = cur && cur.ctx ? cur : null;
@@ -1226,7 +1297,7 @@ async function showParagraph(text, $el, ctx) {
     const token = cur;
     try {
         const c = cfg();
-        const tr = await translateLong(text, c.sourceLang || 'auto', c.targetLang || 'ru', { author: getMsgAuthor($el) });
+        const tr = await translateLong(text, c.sourceLang || 'auto', c.targetLang || 'ru', { author: getMsgAuthor($el), fresh: fresh });
         if (cur !== token) return;
         $('#ts-tr').text(tr);
     } catch(e) {
@@ -1336,6 +1407,32 @@ function saveTreasure(text) {
 // ──────────────────────────────────────────────────────────────
 //   Настройки — открыть/закрыть
 // ──────────────────────────────────────────────────────────────
+function renderCache() {
+    const q    = ($('#ts-cq').val() || '').toLowerCase();
+    const all  = cfg().tcache;
+    const list = q ? all.filter(e => e.src.toLowerCase().includes(q) || e.tr.toLowerCase().includes(q)) : all;
+    $('#ts-ccnt').text(list.length + ' / ' + all.length);
+    $('#ts-cache-clear').prop('disabled', !all.length);
+    if (!list.length) {
+        $('#ts-cache-list').html('<div class="ts-vempty"><i class="fa-solid fa-database"></i><br>' + (all.length ? 'Ничего не найдено' : 'Кеш пуст') + '</div>');
+        return;
+    }
+    const cut = (t, n) => t.length > n ? t.slice(0, n) + '…' : t;
+    $('#ts-cache-list').html(list.slice().reverse().map(function(e) {
+        const ri = all.indexOf(e);
+        const d  = new Date(e.ts).toLocaleDateString('ru-RU');
+        const pl = (PROVIDERS[e.prov] && PROVIDERS[e.prov].label) || e.prov;
+        return '<div class="ts-ve ts-cache-item">'
+            + '<button class="ts-vdel ts-cdel" data-i="' + ri + '" title="Удалить из кеша"><i class="fa-solid fa-trash"></i></button>'
+            + '<div class="ts-ve-orig" style="margin-bottom:4px">' + esc(cut(e.src, 220)) + '</div>'
+            + '<div class="ts-ve-ctx">' + esc(cut(e.tr, 260)) + '</div>'
+            + '<div class="ts-ve-meta"><i class="fa-solid fa-language"></i> ' + esc(pl)
+            + ' &middot; ' + esc(e.sl) + ' → ' + esc(e.tl)
+            + ' &middot; <i class="fa-regular fa-calendar"></i> ' + d + '</div>'
+            + '</div>';
+    }).join(''));
+}
+
 function openSettings(tab) {
     loadSettingsUI();
     const t = tab || 'modules';
@@ -1343,6 +1440,7 @@ function openSettings(tab) {
     $('.ts-stab[data-t="' + t + '"]').addClass('ts-son');
     $('.ts-spane').hide();
     $('#ts-spane-' + t).show();
+    if (t === 'cache') renderCache();
     $('#ts-so').addClass('ts-on');
 }
 function closeSettings() { $('#ts-so').removeClass('ts-on'); applyVars(); }   // applyVars — откат несохранённого предпросмотра цветов
@@ -1643,6 +1741,27 @@ function setupEvents() {
     $('#ts-btn-tclose').on('click', hideTreasures);
     $('#ts-btn-tback').on('click', () => { hideTreasures(); showVocab(); });
 
+    // Кеш: тогглы сохраняются сразу, удаление — по одной записи или целиком
+    $('#ts-s-cache').on('change', function() { cfg().cacheEnabled = !!$(this).prop('checked'); saveSettingsDebounced(); });
+    $('#ts-s-cachemax').on('change', function() {
+        const c = cfg();
+        c.cacheMax = parseInt(this.value, 10) || 300;
+        if (c.tcache.length > c.cacheMax) c.tcache.splice(0, c.tcache.length - c.cacheMax);
+        saveSettingsDebounced(); renderCache();
+    });
+    $('#ts-cq').on('input', renderCache);
+    $('#ts-cache-list').on('click', '.ts-cdel', function() {
+        cfg().tcache.splice(parseInt($(this).data('i'), 10), 1);
+        saveSettingsDebounced(); renderCache();
+    });
+    $('#ts-cache-clear').on('click', function() {
+        const n = cfg().tcache.length;
+        if (!n || !confirm('Удалить весь кеш переводов (' + n + ' шт.)?')) return;
+        cfg().tcache = [];
+        saveSettingsDebounced(); renderCache();
+        showToast('Кеш очищен');
+    });
+
     // Настройки
     $('#ts-so').on('click', function(e) { if (e.target === this) closeSettings(); });
     $('#ts-btn-sx').on('click', closeSettings);
@@ -1693,6 +1812,7 @@ function setupEvents() {
         $(this).addClass('ts-son');
         $('.ts-spane').hide();
         $('#ts-spane-' + t).show();
+        if (t === 'cache') renderCache();
     });
 
     // Пикеры цвета
@@ -1729,6 +1849,15 @@ function setupEvents() {
         } else if (c.ctx && c.ctx.paragraph) {
             showParagraph(c.ctx.paragraph, c.$el || $(), c.ctx);
         }
+    });
+
+    // Кнопка в карточке: перевести заново, минуя кеш (и перезаписать запись)
+    $('#ts-btn-refresh').on('click', function() {
+        const c = cur || {};
+        freshOnce = true;
+        if (c.mode === 'paragraph' && c.para) showParagraph(c.para, c.$el || $(), c.ctx);
+        else if (c.word)                      showCard(c.word, c.$el || $(), c.ctx);
+        else freshOnce = false;
     });
 
     // Сегмент «Слово / Весь абзац» (телефон) — то же, что кнопка абзаца на ПК

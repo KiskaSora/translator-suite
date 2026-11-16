@@ -622,3 +622,25 @@ mark.ts-highlight:hover { background: var(--ts-tint); }
 @media (prefers-reduced-motion: reduce) {
     #ts-card, #ts-vp, #ts-sp, #ts-tp, #ts-fm-card, .ts-slider:before { transition: none !important; }
 }
+
+/* ── Кеш переводов (вкладка настроек) ─────────────────────── */
+#ts-cache-bar { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+#ts-cache-bar #ts-vsearch { margin: 0; }
+#ts-cq {
+    flex: 1; min-width: 0; background: transparent; border: 0; outline: 0;
+    color: var(--ts-text); font-family: inherit; font-size: 14px; padding: 10px 0;
+}
+#ts-cq::placeholder { color: var(--ts-textMuted); }
+#ts-ccnt { font-size: 10.5px; text-transform: uppercase; letter-spacing: var(--ts-caps); color: var(--ts-textMuted); white-space: nowrap; }
+#ts-cache-clear {
+    width: 100%; background: transparent; border: 1px solid var(--ts-border); border-radius: var(--ts-r);
+    padding: 10px 14px; color: var(--ts-textMuted); font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: color 0.16s, border-color 0.16s; font-family: inherit;
+}
+#ts-cache-clear:hover:not(:disabled) { color: #c0392b; border-color: #c0392b; }
+#ts-cache-clear:disabled { opacity: 0.35; cursor: not-allowed; }
+#ts-cache-list { margin-top: 8px; max-height: 340px; overflow-y: auto; }
+#ts-cache-list .ts-ve { margin: 0; padding-right: 26px; }
+#ts-cache-list .ts-vdel { right: -4px; opacity: 0.5; }
+#ts-cache-list .ts-ve:hover .ts-vdel { opacity: 0.9; }
