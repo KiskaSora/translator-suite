@@ -1,22 +1,42 @@
 /* ════════════════════════════════════════════════════════════
    Переводчик: Набор (Translator Suite) v1.0
    Единая система стилей для модулей «Слова» и «Поля».
-   Все цвета через CSS-переменные (--ts-*), задаются из JS.
+   Цвета берутся из темы Таверны (--SmartTheme*) и могут быть переопределены в настройках.
    ════════════════════════════════════════════════════════════ */
 
+/* ── Цвета по умолчанию = цвета темы Таверны (светлой или тёмной) ──
+   --ts-auto-*  вычисляются из переменных темы ST (--SmartTheme*).
+   --ts-*       = auto, пока пользователь не переопределил цвет в настройках
+                  (переопределения добавляет JS в <style id="ts-css-vars">). */
 :root {
-    --ts-accent:    #8b5cf6;
-    --ts-bg:        #0d0d10;
-    --ts-cardBg:    #17171f;
-    --ts-surfaceBg: #21212c;
-    --ts-text:      #eeeef5;
-    --ts-textMuted: #68687a;
-    --ts-border:    #28283a;
-    --ts-addBtn:    #8b5cf6;
-    --ts-closBtn:   #21212c;
+    --ts-auto-text:      var(--SmartThemeBodyColor, #e6e6ee);
+    --ts-auto-cardBg:    var(--SmartThemeBlurTintColor, #17171f);
+    --ts-auto-accent:    var(--SmartThemeUnderlineColor, var(--SmartThemeQuoteColor, #8b5cf6));
+    --ts-auto-bg:        color-mix(in srgb, var(--ts-cardBg) 22%, #000);
+
+    --ts-text:      var(--ts-auto-text);
+    --ts-cardBg:    var(--ts-auto-cardBg);
+    --ts-accent:    var(--ts-auto-accent);
+    --ts-bg:        var(--ts-auto-bg);
+    --ts-surfaceBg: color-mix(in srgb, var(--ts-text) 8%, var(--ts-cardBg));
+    --ts-textMuted: color-mix(in srgb, var(--ts-text) 58%, var(--ts-cardBg));
+    --ts-border:    color-mix(in srgb, var(--ts-text) 16%, var(--ts-cardBg));
+    --ts-addBtn:    var(--ts-accent);
+    --ts-closBtn:   var(--ts-surfaceBg);
+
+    /* Цвет текста/иконок на акцентных кнопках — чёрный или белый по яркости фона */
+    --ts-onAccent:  #fff;
+    --ts-onAdd:     #fff;
+
     --ts-radius:    18px;
     --ts-spring:    cubic-bezier(0.34, 1.4, 0.64, 1);
-    --ts-shadow:    0 24px 80px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04);
+    --ts-shadow:    0 18px 60px rgba(0,0,0,0.45), 0 0 0 1px color-mix(in srgb, var(--ts-text) 8%, transparent);
+}
+@supports (color: oklch(from red l c h)) {
+    :root {
+        --ts-onAccent: oklch(from var(--ts-accent) clamp(0, (0.68 - l) * 1000, 1) 0 0);
+        --ts-onAdd:    oklch(from var(--ts-addBtn) clamp(0, (0.68 - l) * 1000, 1) 0 0);
+    }
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -32,7 +52,7 @@
     width: 100%;
     height: 100%;
     height: 100dvh;
-    background: rgba(0, 0, 0, 0.72);
+    background: color-mix(in srgb, var(--ts-bg) 72%, transparent);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     display: flex;
@@ -94,7 +114,7 @@
 .ts-hb:hover {
     background: var(--ts-accent);
     border-color: var(--ts-accent);
-    color: #fff;
+    color: var(--ts-onAccent);
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -188,7 +208,7 @@
     border: 1px solid var(--ts-border);
 }
 #ts-bclose:hover { opacity: 0.75; }
-#ts-badd { background: var(--ts-addBtn); color: #fff; border: 1px solid transparent; }
+#ts-badd { background: var(--ts-addBtn); color: var(--ts-onAdd); border: 1px solid transparent; }
 #ts-badd:hover { opacity: 0.88; }
 #ts-badd.ts-already {
     background: var(--ts-surfaceBg);
@@ -292,7 +312,7 @@
     position: relative;
     transition: background 0.12s;
 }
-.ts-ve:hover { background: rgba(255,255,255,0.02); }
+.ts-ve:hover { background: color-mix(in srgb, var(--ts-text) 4%, transparent); }
 
 .ts-vdel {
     position: absolute;
@@ -361,7 +381,7 @@ mark.ts-highlight {
     transition: background 0.12s;
 }
 mark.ts-highlight:hover {
-    background: rgba(139, 92, 246, 0.15);
+    background: color-mix(in srgb, var(--ts-accent) 15%, transparent);
     border-radius: 3px;
 }
 
@@ -421,11 +441,11 @@ mark.ts-highlight:hover {
     margin-bottom: -1px;
     white-space: nowrap;
 }
-.ts-stab:hover { color: var(--ts-text); background: rgba(255,255,255,0.04); }
+.ts-stab:hover { color: var(--ts-text); background: color-mix(in srgb, var(--ts-text) 7%, transparent); }
 .ts-stab.ts-son {
     color: var(--ts-accent);
     border-bottom-color: var(--ts-accent);
-    background: rgba(139, 92, 246, 0.08);
+    background: color-mix(in srgb, var(--ts-accent) 8%, transparent);
 }
 
 .ts-spane {
@@ -484,7 +504,7 @@ mark.ts-highlight:hover {
 .ts-sfield input:focus,
 .ts-sfield textarea:focus {
     border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 15%, transparent);
 }
 .ts-sfield select option { background: var(--ts-cardBg); color: var(--ts-text); }
 
@@ -509,7 +529,7 @@ mark.ts-highlight:hover {
 }
 .ts-pw > input:focus {
     border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 15%, transparent);
 }
 .ts-eye {
     position: absolute !important; right: 5px !important; top: 50% !important;
@@ -524,8 +544,8 @@ mark.ts-highlight:hover {
 .ts-req  { color: #f59e0b !important; }
 
 #ts-s-pinfo {
-    background: rgba(139, 92, 246, 0.08);
-    border: 1px solid rgba(139, 92, 246, 0.25);
+    background: color-mix(in srgb, var(--ts-accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ts-accent) 25%, transparent);
     border-radius: 10px;
     padding: 10px 14px;
     font-size: 12.5px;
@@ -673,24 +693,6 @@ mark.ts-highlight:hover {
     font-family: 'Courier New', Courier, monospace;
     margin: 0 2px;
 }
-#ts-s-css {
-    width: 100%; box-sizing: border-box;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    color: var(--ts-text);
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12.5px; line-height: 1.65;
-    height: 230px; resize: vertical;
-    outline: none;
-    transition: border-color 0.14s, box-shadow 0.14s;
-}
-#ts-s-css:focus {
-    border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
-}
-#ts-s-css::placeholder { color: var(--ts-border); }
 
 /* ── Footer ── */
 #ts-sfooter {
@@ -704,7 +706,7 @@ mark.ts-highlight:hover {
     border: none;
     border-radius: 10px;
     padding: 11px;
-    color: #fff;
+    color: var(--ts-onAccent);
     font-size: 14px; font-weight: 600;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -728,7 +730,7 @@ mark.ts-highlight:hover {
     padding: 10px 22px;
     font-size: 14px;
     color: var(--ts-text);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     z-index: 999999;
     opacity: 0;
     pointer-events: none;
@@ -765,7 +767,7 @@ mark.ts-highlight:hover {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.7);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3);
     white-space: nowrap;
     transition: background 0.15s, transform 0.1s;
 }
@@ -804,7 +806,7 @@ mark.ts-highlight:hover {
     opacity: 1 !important;
     background: var(--ts-accent);
     border-color: var(--ts-accent);
-    color: #fff;
+    color: var(--ts-onAccent);
     transform: scale(1.08);
 }
 .ts-field-btn i { pointer-events: none; }
@@ -882,7 +884,7 @@ mark.ts-highlight:hover {
 }
 .ts-fm-col textarea:focus {
     border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 15%, transparent);
 }
 .ts-fm-col textarea[readonly] {
     color: var(--ts-textMuted);
@@ -913,13 +915,13 @@ mark.ts-highlight:hover {
 .ts-fm-primary {
     background: var(--ts-accent);
     border-color: var(--ts-accent);
-    color: #fff;
+    color: var(--ts-onAccent);
 }
 .ts-fm-primary:hover:not(:disabled) { opacity: 0.88; }
 .ts-fm-success {
     background: rgba(50, 200, 100, 0.12);
     border-color: rgba(50, 200, 100, 0.45);
-    color: #70dd98;
+    color: color-mix(in srgb, #22c55e 60%, var(--ts-text));
 }
 .ts-fm-success:hover:not(:disabled) {
     background: rgba(50, 200, 100, 0.22);
@@ -942,8 +944,8 @@ mark.ts-highlight:hover {
     color: var(--ts-textMuted);
     transition: color 0.14s;
 }
-.ts-fm-st-ok   { color: #70dd98; }
-.ts-fm-st-err  { color: #e07070; }
+.ts-fm-st-ok   { color: color-mix(in srgb, #22c55e 60%, var(--ts-text)); }
+.ts-fm-st-err  { color: color-mix(in srgb, #ef4444 65%, var(--ts-text)); }
 .ts-fm-st-info { color: var(--ts-textMuted); }
 
 /* ──────────────────────────────────────────────────────────────
@@ -982,3 +984,56 @@ mark.ts-highlight:hover {
     #ts-title { font-size: 22px; }
     .ts-stab { padding: 8px 10px; font-size: 12px; }
 }
+
+/* ── Режим «весь абзац» ── */
+#ts-card.ts-para #ts-title {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--ts-textMuted);
+}
+#ts-card.ts-para #ts-trow { align-items: flex-start; }
+#ts-card.ts-para .ts-arr { margin-top: 5px; }
+#ts-card.ts-para #ts-tr {
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.65;
+    letter-spacing: 0;
+    white-space: pre-wrap;
+    color: var(--ts-text);
+}
+#ts-card.ts-para #ts-cen {
+    white-space: pre-wrap;
+    max-height: 30vh;
+    overflow-y: auto;
+}
+
+/* ── Окна поверх прозрачных тем ── */
+#ts-card, #ts-vp, #ts-sp, #ts-tp, #ts-fm-card {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── Вкладка «Цвета»: подсказка и сброс к цвету темы ── */
+.ts-cr-tag {
+    display: none;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10px; font-style: normal; font-weight: 600;
+    letter-spacing: .02em;
+    color: var(--ts-accent);
+    background: color-mix(in srgb, var(--ts-accent) 14%, transparent);
+}
+.ts-cr[data-auto="1"] .ts-cr-tag { display: inline-block; }
+.ts-cr-auto {
+    background: var(--ts-surfaceBg);
+    border: 1px solid var(--ts-border);
+    border-radius: 8px;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ts-textMuted);
+    font-size: 12px; cursor: pointer; flex-shrink: 0; padding: 0;
+}
+.ts-cr-auto:hover { border-color: var(--ts-accent); color: var(--ts-accent); }
+.ts-cr[data-auto="1"] .ts-cr-auto { opacity: .35; pointer-events: none; }

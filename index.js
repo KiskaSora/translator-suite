@@ -3,24 +3,21 @@
 //  Объединение двух расширений в одно:
 //    • Модуль «Слова»  — двойной клик по слову в чате → перевод/словарь
 //    • Модуль «Поля»   — кнопка переводчика в текстареа карточек/лорбуков
-//  Единая система кастомизации (цвета + Custom CSS).
+//  Единая система кастомизации (цвета от темы Таверны + ручные правки).
 // ══════════════════════════════════════════════════════════════
 import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types, getRequestHeaders } from '../../../../script.js';
 
 const EXT = 'translator-suite';
 
-// ── Цвета по умолчанию ────────────────────────────────────────
-const DEFAULT_COLORS = {
-    accent:    '#8b5cf6',
-    bg:        '#0d0d10',
-    cardBg:    '#17171f',
-    surfaceBg: '#21212c',
-    text:      '#eeeef5',
-    textMuted: '#68687a',
-    border:    '#28283a',
-    addBtn:    '#8b5cf6',
-    closBtn:   '#21212c',
+// ── Цвета ────────────────────────────────────────────────────
+// По умолчанию все цвета берутся из темы Таверны (см. style.css, --ts-auto-*).
+// В настройках хранятся ТОЛЬКО цвета, которые пользователь изменил вручную.
+// LEGACY_COLORS — старые жёстко заданные значения: нужны, чтобы при обновлении
+// не считать их «переопределениями» и вернуть слежение за темой.
+const LEGACY_COLORS = {
+    accent: '#8b5cf6', bg: '#0d0d10', cardBg: '#17171f', surfaceBg: '#21212c',
+    text: '#eeeef5', textMuted: '#68687a', border: '#28283a', addBtn: '#8b5cf6', closBtn: '#21212c',
 };
 
 const COLOR_FIELDS = [
@@ -370,7 +367,7 @@ if (!extension_settings[EXT]) {
         provider: 'google', apiKey: '', libreUrl: '',
         sourceLang: 'auto', targetLang: 'ru',
         customModel: '', customSystemPrompt: DEFAULT_CUSTOM_PROMPT,
-        colors: { ...DEFAULT_COLORS }, customCss: '',
+        colors: {}, colorsVersion: 2,
 
         // Модули — включены оба по умолчанию
         modWords: true,
@@ -382,20 +379,28 @@ if (!extension_settings[EXT]) {
         // Настройки модуля «Слова»
         vocabulary: [], treasures: [],
         highlightSaved: true, treasuresEnabled: false,
+        tapMode: 'word',
     };
 }
 const _s = extension_settings[EXT];
-if (!_s.colors)                        _s.colors             = { ...DEFAULT_COLORS };
+if (!_s.colors)                        _s.colors             = {};
+if (_s.colorsVersion !== 2) {   // миграция: убираем старые значения по умолчанию, чтобы цвета шли от темы
+    Object.keys(_s.colors).forEach(k => {
+        if (!_s.colors[k] || String(_s.colors[k]).toLowerCase() === LEGACY_COLORS[k]) delete _s.colors[k];
+    });
+    _s.colorsVersion = 2;
+}
+delete _s.customCss;
 if (!_s.provider)                      _s.provider           = 'google';
 if (!_s.targetLang)                    _s.targetLang         = 'ru';
 if (_s.sourceLang === undefined)       _s.sourceLang         = 'auto';
-if (_s.customCss === undefined)        _s.customCss          = '';
 if (_s.customModel === undefined)      _s.customModel        = '';
 if (_s.customSystemPrompt === undefined) _s.customSystemPrompt = DEFAULT_CUSTOM_PROMPT;
 if (!_s.vocabulary)                    _s.vocabulary         = [];
 if (!_s.treasures)                     _s.treasures          = [];
 if (_s.highlightSaved === undefined)   _s.highlightSaved     = true;
 if (_s.treasuresEnabled === undefined) _s.treasuresEnabled   = false;
+if (_s.tapMode === undefined)          _s.tapMode            = 'word';
 if (_s.modWords === undefined)         _s.modWords           = true;
 if (_s.modFields === undefined)        _s.modFields          = true;
 if (_s.autoFallback === undefined)     _s.autoFallback       = true;
@@ -464,6 +469,99 @@ function getSentenceFromSelection() {
     return text.slice(start, end).trim();
 }
 
+
+// ── Режим редактирования / поля ввода ────────────────────────
+// В редакторе сообщения ST кладёт textarea ВНУТРЬ .mes_text, поэтому
+// наши обработчики на .mes_text срабатывали и в нём (и ломали выделение).
+function inEditMode(target) {
+    const el = target && target.nodeType === 3 ? target.parentElement : target;
+    if (!el || !el.closest) return false;
+    if (el.closest('textarea, input, select, [contenteditable="true"], #curEditTextarea, .edit_textarea')) return true;
+    const mt = el.closest('.mes_text');
+    return !!(mt && mt.querySelector('textarea'));
+}
+
+// Ближайший абзац-блок вокруг узла (p, li, blockquote, заголовок…), иначе весь .mes_text
+function getBlockEl(node, root) {
+    let el = node && node.nodeType === 3 ? node.parentElement : node;
+    while (el && el !== root) {
+        if (el.matches && el.matches('p, li, blockquote, h1, h2, h3, h4, h5, h6, pre, td, th')) return el;
+        el = el.parentElement;
+    }
+    return root;
+}
+
+// Плоский текст блока (<br> → \n, любые em/strong/q/mark/span не мешают)
+// и смещение выбранной точки внутри него.
+function flattenBlock(root, targetNode, targetOffset) {
+    let text = '', offset = -1;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null, false);
+    let n = walker.currentNode;
+    const handleTarget = (node) => {
+        if (offset >= 0) return;
+        if (node === targetNode) {
+            offset = text.length + (node.nodeType === 3 ? targetOffset : 0);
+        }
+    };
+    handleTarget(root);
+    while ((n = walker.nextNode())) {
+        if (n.nodeType === 3) {
+            handleTarget(n);
+            text += n.data;
+        } else if (n.nodeName === 'BR') {
+            text += '\n';
+        }
+    }
+    // targetNode — элемент: считаем по childNodes
+    if (offset < 0 && targetNode && targetNode.nodeType === 1) {
+        let acc = '';
+        const kids = Array.from(targetNode.childNodes).slice(0, targetOffset);
+        kids.forEach(k => { acc += k.textContent || ''; });
+        offset = Math.min(text.length, text.indexOf(acc) >= 0 ? text.indexOf(acc) + acc.length : 0);
+    }
+    return { text, offset: offset < 0 ? 0 : offset };
+}
+
+// Границы абзаца внутри плоского текста (если блок = весь .mes_text с <br>)
+function paragraphAround(text, offset) {
+    let re = /\n\s*\n/g, start = 0, end = text.length, m;
+    while ((m = re.exec(text)) !== null) {
+        if (m.index + m[0].length <= offset) start = m.index + m[0].length;
+        else if (m.index >= offset) { end = m.index; break; }
+    }
+    let para = text.slice(start, end);
+    if (para.length > 1800) { // слишком длинный кусок — режем по одиночным переносам
+        const re2 = /\n/g; let s2 = start, e2 = end;
+        while ((m = re2.exec(text)) !== null) {
+            if (m.index < offset) s2 = Math.max(s2, m.index + 1);
+            else if (m.index >= offset && m.index < e2) { e2 = m.index; break; }
+        }
+        para = text.slice(s2, e2);
+    }
+    return para.trim();
+}
+
+function sentenceAround(text, offset) {
+    let start = Math.min(offset, text.length), end = start;
+    while (start > 0 && !/[.!?…\n]/.test(text[start - 1])) start--;
+    while (end < text.length && !/[.!?…\n]/.test(text[end])) end++;
+    while (end < text.length && /[.!?…]/.test(text[end])) end++;            // сам знак конца (включая «?!»)
+    while (end < text.length && /["'”’»*_)\]]/.test(text[end])) end++;     // закрывающие кавычки/звёздочки
+    return text.slice(start, end).trim();
+}
+
+function caretFromPoint(x, y) {
+    if (document.caretRangeFromPoint) {
+        const r = document.caretRangeFromPoint(x, y);
+        return r ? { node: r.startContainer, offset: r.startOffset } : null;
+    }
+    if (document.caretPositionFromPoint) {
+        const p = document.caretPositionFromPoint(x, y);
+        return p ? { node: p.offsetNode, offset: p.offset } : null;
+    }
+    return null;
+}
+
 // Склонение "раз/раза" для счётчика встречаемости (1 раз, 2 раза, 5 раз…)
 function timesRu(n) {
     n = Math.abs(n) % 100;
@@ -503,69 +601,59 @@ function countInChat(word) {
 }
 
 // ── Применение стилей ────────────────────────────────────────
-function applyVars() {
-    const colors = Object.assign({}, DEFAULT_COLORS, cfg().colors || {});
-    const lines = COLOR_FIELDS.map(f => `  --ts-${f.key}: ${colors[f.key] || DEFAULT_COLORS[f.key]};`);
-    const css = ':root {\n' + lines.join('\n') + '\n}';
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+// Пишем в :root только то, что пользователь переопределил; остальное идёт от темы.
+function applyVarsFrom(overrides) {
+    const lines = COLOR_FIELDS
+        .filter(f => HEX_RE.test((overrides || {})[f.key] || ''))
+        .map(f => `  --ts-${f.key}: ${overrides[f.key]};`);
     let el = document.getElementById('ts-css-vars');
     if (!el) { el = document.createElement('style'); el.id = 'ts-css-vars'; document.head.appendChild(el); }
-    el.textContent = css;
+    el.textContent = lines.length ? ':root {\n' + lines.join('\n') + '\n}' : '';
 }
+function applyVars() { applyVarsFrom(cfg().colors || {}); }
 
-function applyCustomCss() {
-    let el = document.getElementById('ts-css-custom');
-    if (!el) { el = document.createElement('style'); el.id = 'ts-css-custom'; document.head.appendChild(el); }
-    el.textContent = cfg().customCss || '';
-}
-
-// ──────────────────────────────────────────────────────────────
-//   ПОДСВЕТКА СЛОВ ИЗ СЛОВАРЯ В ЧАТЕ
-// ──────────────────────────────────────────────────────────────
-function highlightSavedInChat() {
-    if (!cfg().modWords) return;
-    if (cfg().highlightSaved !== true) return;
-    const vocab = cfg().vocabulary;
-    if (!vocab.length) return;
-    const words = vocab.map(e => e.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const pattern = new RegExp('\\b(' + words.join('|') + ')\\b', 'gi');
-
-    document.querySelectorAll('.mes_text').forEach(function(el) {
-        if (el.dataset.tsHighlighted === 'true') return;
-        el.dataset.tsHighlighted = 'true';
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
-        const nodesToReplace = [];
-        let node;
-        while ((node = walker.nextNode())) {
-            pattern.lastIndex = 0;
-            if (pattern.test(node.textContent)) nodesToReplace.push(node);
+// Текущий цвет переменной (с учётом темы) → #rrggbb, для показа в пикере
+let _probe = null, _ctx2d = null;
+function resolveColorHex(cssVar) {
+    try {
+        if (!_probe) {
+            _probe = document.createElement('span');
+            _probe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;pointer-events:none;';
+            document.body.appendChild(_probe);
+            _ctx2d = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+            _ctx2d.canvas.width = _ctx2d.canvas.height = 1;
         }
-        nodesToReplace.forEach(function(textNode) {
-            const frag = document.createDocumentFragment();
-            const text = textNode.textContent;
-            let last = 0;
-            pattern.lastIndex = 0;
-            let m;
-            while ((m = pattern.exec(text)) !== null) {
-                if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-                const mark = document.createElement('mark');
-                mark.className = 'ts-highlight';
-                mark.textContent = m[0];
-                frag.appendChild(mark);
-                last = pattern.lastIndex;
-            }
-            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
-            textNode.parentNode.replaceChild(frag, textNode);
-        });
-    });
+        _probe.style.color = 'var(' + cssVar + ')';
+        const col = getComputedStyle(_probe).color;
+        _ctx2d.clearRect(0, 0, 1, 1);
+        _ctx2d.fillStyle = '#000';
+        _ctx2d.fillStyle = col;
+        _ctx2d.fillRect(0, 0, 1, 1);
+        const d = _ctx2d.getImageData(0, 0, 1, 1).data;
+        return '#' + [d[0], d[1], d[2]].map(n => n.toString(16).padStart(2, '0')).join('');
+    } catch (e) { return '#888888'; }
 }
 
-function resetHighlights() {
-    document.querySelectorAll('.ts-highlight').forEach(function(el) {
-        const txt = document.createTextNode(el.textContent);
-        el.parentNode.replaceChild(txt, el);
+// Что сейчас выставлено в строках «Цвета»: только изменённые вручную
+function collectColorOverrides() {
+    const out = {};
+    $('.ts-cr[data-auto="0"]').each(function() {
+        const k = $(this).data('k');
+        const v = ($(this).find('.ts-cpick').val() || '').toLowerCase();
+        if (HEX_RE.test(v)) out[k] = v;
     });
-    document.querySelectorAll('.mes_text[data-ts-highlighted]').forEach(function(el) {
-        delete el.dataset.tsHighlighted;
+    return out;
+}
+
+// Показать в пикерах реальные цвета (темы или свои)
+function syncColorRows() {
+    COLOR_FIELDS.forEach(function(f) {
+        const row = $('.ts-cr[data-k="' + f.key + '"]');
+        if (row.attr('data-auto') === '0') return;
+        const v = resolveColorHex('--ts-' + f.key);
+        row.find('.ts-cpick, .ts-ctxt').val(v);
     });
 }
 
@@ -577,11 +665,12 @@ function buildUiHtml() {
     const slOpts = ALL_LANGUAGES.map(l => `<option value="${l.code}">${esc(l.label)}</option>`).join('');
     const tlOpts = TARGET_LANGS.map(l => `<option value="${l.code}">${esc(l.label)} (${l.code})</option>`).join('');
     const cPickers = COLOR_FIELDS.map(f => `
-<div class="ts-cr">
-  <span class="ts-cr-lbl">${esc(f.label)}</span>
+<div class="ts-cr" data-k="${f.key}" data-auto="1">
+  <span class="ts-cr-lbl">${esc(f.label)} <em class="ts-cr-tag">тема</em></span>
   <div class="ts-cr-inp">
     <input type="color" class="ts-cpick" data-k="${f.key}">
     <input type="text"  class="ts-ctxt"  data-k="${f.key}" maxlength="7" spellcheck="false" placeholder="#000000">
+    <button type="button" class="ts-cr-auto" data-k="${f.key}" title="Вернуть цвет темы"><i class="fa-solid fa-rotate-left"></i></button>
   </div>
 </div>`).join('');
 
@@ -592,6 +681,9 @@ function buildUiHtml() {
     <div id="ts-top">
       <span id="ts-title"></span>
       <div class="ts-hbtns">
+        <button class="ts-hb" id="ts-btn-mode" title="Перевести весь абзац">
+          <i class="fa-solid fa-paragraph"></i>
+        </button>
         <button class="ts-hb" id="ts-btn-settings" title="Настройки">
           <i class="fa-solid fa-gear"></i>
         </button>
@@ -722,7 +814,6 @@ function buildUiHtml() {
       <button class="ts-stab" data-t="general"><i class="fa-solid fa-language"></i> Перевод</button>
       <button class="ts-stab" data-t="reading"><i class="fa-solid fa-book"></i> Чтение</button>
       <button class="ts-stab" data-t="colors"><i class="fa-solid fa-palette"></i> Цвета</button>
-      <button class="ts-stab" data-t="css"><i class="fa-solid fa-code"></i> CSS</button>
     </div>
 
     <!-- ── Модули ── -->
@@ -799,6 +890,16 @@ function buildUiHtml() {
     <div class="ts-spane" id="ts-spane-reading" style="display:none">
       <div class="ts-toggle-row">
         <div class="ts-toggle-info">
+          <span class="ts-toggle-title"><i class="fa-solid fa-paragraph"></i> Двойной тап переводит</span>
+          <span class="ts-toggle-desc">Слово с предложением или сразу весь абзац. Переключать можно и кнопкой в карточке</span>
+        </div>
+        <select id="ts-s-tapmode" class="text_pole" style="width:auto;min-width:120px">
+          <option value="word">Слово</option>
+          <option value="paragraph">Весь абзац</option>
+        </select>
+      </div>
+      <div class="ts-toggle-row">
+        <div class="ts-toggle-info">
           <span class="ts-toggle-title"><i class="fa-solid fa-highlighter"></i> Подсвечивать сохранённые слова</span>
           <span class="ts-toggle-desc">Отмечать слова из словаря прямо в тексте чата</span>
         </div>
@@ -815,19 +916,13 @@ function buildUiHtml() {
 
     <!-- ── Цвета ── -->
     <div class="ts-spane" id="ts-spane-colors" style="display:none">
-      <div id="ts-cgrid">${cPickers}</div>
-      <button id="ts-creset"><i class="fa-solid fa-rotate-left"></i> Сбросить к умолчанию</button>
-    </div>
-
-    <!-- ── CSS ── -->
-    <div class="ts-spane" id="ts-spane-css" style="display:none">
       <div class="ts-cssinfo">
         <i class="fa-solid fa-circle-info"></i>
-        Пишется поверх основных стилей. Доступны CSS-переменные:<br>
-        <code>--ts-accent</code> <code>--ts-cardBg</code> <code>--ts-surfaceBg</code>
-        <code>--ts-text</code> <code>--ts-border</code> и другие.
+        По умолчанию цвета берутся из темы Таверны — и для светлой, и для тёмной.
+        Меняйте только то, что не устраивает; кнопка ↺ у строки вернёт цвет темы.
       </div>
-      <textarea id="ts-s-css" placeholder="/* Пример */&#10;#ts-card { border: 1px solid var(--ts-accent); }"></textarea>
+      <div id="ts-cgrid">${cPickers}</div>
+      <button id="ts-creset"><i class="fa-solid fa-rotate-left"></i> Вернуть все цвета темы</button>
     </div>
 
     <div id="ts-sfooter">
@@ -853,15 +948,17 @@ function loadSettingsUI() {
     $('#ts-s-sysprompt').val(c.customSystemPrompt || DEFAULT_CUSTOM_PROMPT);
     $('#ts-s-sourcelang').val(c.sourceLang || 'auto');
     $('#ts-s-lang').val(c.targetLang || 'ru');
-    $('#ts-s-css').val(c.customCss || '');
     $('#ts-s-highlight').prop('checked', c.highlightSaved !== false);
+    $('#ts-s-tapmode').val(c.tapMode === 'paragraph' ? 'paragraph' : 'word');
     $('#ts-s-treasures').prop('checked', !!c.treasuresEnabled);
-    const colors = Object.assign({}, DEFAULT_COLORS, c.colors || {});
+    applyVars();
     COLOR_FIELDS.forEach(function(f) {
-        const v = colors[f.key] || DEFAULT_COLORS[f.key];
-        $('.ts-cpick[data-k="' + f.key + '"]').val(v);
-        $('.ts-ctxt[data-k="' + f.key + '"]').val(v);
+        const ov = (c.colors || {})[f.key];
+        const row = $('.ts-cr[data-k="' + f.key + '"]');
+        row.attr('data-auto', HEX_RE.test(ov || '') ? '0' : '1');
+        if (HEX_RE.test(ov || '')) row.find('.ts-cpick, .ts-ctxt').val(ov);
     });
+    syncColorRows();
     updateProviderUI();
 }
 
@@ -926,17 +1023,12 @@ function saveSettingsFromUI() {
     c.customSystemPrompt = $('#ts-s-sysprompt').val() || DEFAULT_CUSTOM_PROMPT;
     c.sourceLang       = $('#ts-s-sourcelang').val() || 'auto';
     c.targetLang       = $('#ts-s-lang').val() || 'ru';
-    c.customCss        = $('#ts-s-css').val() || '';
     c.highlightSaved   = !!$('#ts-s-highlight').prop('checked');
+    c.tapMode          = $('#ts-s-tapmode').val() === 'paragraph' ? 'paragraph' : 'word';
     c.treasuresEnabled = !!$('#ts-s-treasures').prop('checked');
-    if (!c.colors) c.colors = {};
-    COLOR_FIELDS.forEach(function(f) {
-        const v = $('.ts-cpick[data-k="' + f.key + '"]').val();
-        if (v) c.colors[f.key] = v;
-    });
+    c.colors = collectColorOverrides();
     saveSettingsDebounced();
     applyVars();
-    applyCustomCss();
     resetHighlights();
     if (c.modWords && c.highlightSaved === true) highlightSavedInChat();
     refreshFieldButtons();
@@ -981,8 +1073,27 @@ async function translateWith(text, sl, tl) {
     throw new Error('Все провайдеры недоступны:\n' + errors.join('\n'));
 }
 
-async function showCard(word, $el) {
-    cur = { word: word, translation: '', context: '', contextTr: '', chat: '' };
+// Перевод длинного текста кусками, чтобы не упереться в лимиты провайдеров
+async function translateLong(text, sl, tl) {
+    const parts = splitText(text, 1800);
+    const out = [];
+    for (const part of parts) out.push(await translateWith(part, sl, tl));
+    return out.join('\n\n');
+}
+
+function setCardMode(mode) {
+    cur.mode = mode;
+    const para = mode === 'paragraph';
+    $('#ts-card').toggleClass('ts-para', para);
+    $('#ts-badd').toggle(!para);
+    $('#ts-btn-mode').attr('title', para ? 'Показать слово' : 'Перевести весь абзац')
+        .find('i').attr('class', para ? 'fa-solid fa-font' : 'fa-solid fa-paragraph');
+}
+
+async function showCard(word, $el, ctx) {
+    ctx = ctx || {};
+    cur = { word: word, translation: '', context: '', contextTr: '', chat: '', mode: 'word', ctx: ctx, $el: $el };
+    setCardMode('word');
     const already = cfg().vocabulary.some(e => e.word.toLowerCase() === word.toLowerCase());
     $('#ts-title').text(word);
     $('#ts-tr').text('');
@@ -992,8 +1103,7 @@ async function showCard(word, $el) {
     else         $('#ts-badd').html('<i class="fa-solid fa-bookmark"></i> Добавить').attr('class', '');
     $('#ts-overlay').addClass('ts-on');
     try {
-        const fromSel = getSentenceFromSelection();
-        cur.context = fromSel || getSentence($el.text() || '', word);
+        cur.context = ctx.sentence || getSentence($el.text() || '', word);
         cur.chat    = getChatName();
         const seenCount = countInChat(word);
         if (seenCount > 1) {
@@ -1008,6 +1118,7 @@ async function showCard(word, $el) {
             translateWith(word,        sl, tl),
             translateWith(cur.context, sl, tl)
         ]);
+        if (cur.word !== word || cur.mode !== 'word') return;   // карточку уже переключили/сменили
         cur.translation = wt;
         cur.contextTr   = st;
         $('#ts-tr').text(wt);
@@ -1018,6 +1129,34 @@ async function showCard(word, $el) {
         console.error('[TranslatorSuite]', e);
     } finally {
         $('#ts-spin').hide();
+    }
+}
+
+// Режим «весь абзац»: переводит абзац целиком, как бы он ни был оформлен
+async function showParagraph(text, $el, ctx) {
+    text = (text || '').trim();
+    if (!text) return;
+    const keep = cur && cur.ctx ? cur : null;
+    cur = { word: (ctx && ctx.word) || '', translation: '', context: '', contextTr: '', chat: '', mode: 'paragraph', ctx: ctx || {}, $el: $el, para: text };
+    setCardMode('paragraph');
+    $('#ts-title').html('<i class="fa-solid fa-paragraph"></i> Абзац');
+    $('#ts-tr').text('');
+    $('#ts-count').hide();
+    $('#ts-cru').html('');
+    $('#ts-cen').text(text);
+    $('#ts-spin').show();
+    $('#ts-overlay').addClass('ts-on');
+    const token = cur;
+    try {
+        const c = cfg();
+        const tr = await translateLong(text, c.sourceLang || 'auto', c.targetLang || 'ru');
+        if (cur !== token) return;
+        $('#ts-tr').text(tr);
+    } catch(e) {
+        if (cur === token) $('#ts-tr').text('Ошибка: ' + e.message);
+        console.error('[TranslatorSuite]', e);
+    } finally {
+        if (cur === token) $('#ts-spin').hide();
     }
 }
 function hideCard() { $('#ts-overlay').removeClass('ts-on'); }
@@ -1129,7 +1268,7 @@ function openSettings(tab) {
     $('#ts-spane-' + t).show();
     $('#ts-so').addClass('ts-on');
 }
-function closeSettings() { $('#ts-so').removeClass('ts-on'); }
+function closeSettings() { $('#ts-so').removeClass('ts-on'); applyVars(); }   // applyVars — откат несохранённого предпросмотра цветов
 
 // ──────────────────────────────────────────────────────────────
 //   CSV import/export
@@ -1480,71 +1619,140 @@ function setupEvents() {
     });
 
     // Пикеры цвета
+    // Живой предпросмотр: пока меняем цвет — видно сразу; «Сохранить» запоминает
+    function previewColors() { applyVarsFrom(collectColorOverrides()); }
+    function markManual(k) { $('.ts-cr[data-k="' + k + '"]').attr('data-auto', '0'); }
     $(document).on('input', '.ts-cpick', function() {
         const k = $(this).data('k');
         $('.ts-ctxt[data-k="' + k + '"]').val($(this).val());
+        markManual(k); previewColors();
     });
     $(document).on('input', '.ts-ctxt', function() {
         const v = $(this).val().trim();
         const k = $(this).data('k');
-        if (/^#[0-9a-f]{6}$/i.test(v)) $('.ts-cpick[data-k="' + k + '"]').val(v);
+        if (HEX_RE.test(v)) {
+            $('.ts-cpick[data-k="' + k + '"]').val(v);
+            markManual(k); previewColors();
+        }
+    });
+    $(document).on('click', '.ts-cr-auto', function() {
+        $('.ts-cr[data-k="' + $(this).data('k') + '"]').attr('data-auto', '1');
+        previewColors(); syncColorRows();
     });
     $('#ts-creset').on('click', function() {
-        COLOR_FIELDS.forEach(f => {
-            $('.ts-cpick[data-k="' + f.key + '"]').val(DEFAULT_COLORS[f.key]);
-            $('.ts-ctxt[data-k="' + f.key + '"]').val(DEFAULT_COLORS[f.key]);
-        });
+        $('.ts-cr').attr('data-auto', '1');
+        previewColors(); syncColorRows();
     });
 
-    // Двойной клик / тап → перевод слова (модуль «Слова»)
-    let _tsLastTap = 0, _tsLastEl = null, _tsTapTimer = null;
+    // Кнопка в карточке: переключить слово ⇄ весь абзац
+    $('#ts-btn-mode').on('click', function() {
+        const c = cur || {};
+        if (c.mode === 'paragraph') {
+            if (c.ctx && c.ctx.word) showCard(c.ctx.word, c.$el || $(), c.ctx);
+        } else if (c.ctx && c.ctx.paragraph) {
+            showParagraph(c.ctx.paragraph, c.$el || $(), c.ctx);
+        }
+    });
+
+    // Двойной клик / тап → перевод слова или абзаца (модуль «Слова»)
+    const cleanWord = w => (w || '').replace(/^[\s.,!?;:"'()«»“”‘’\-–—…*_\[\]]+|[\s.,!?;:"'()«»“”‘’\-–—…*_\[\]]+$/g, '');
+    let _lastOpenAt = 0;
+
     function handleWordTap(el, x, y) {
         if (!cfg().modWords) return;
-        const sel  = window.getSelection();
-        let word   = sel ? sel.toString().trim() : '';
-        word = word.replace(/^[\s.,!?;:"'()«»\-–—\[\]]+|[\s.,!?;:"'()«»\-–—\[\]]+$/g, '');
+        if (Date.now() - _lastOpenAt < 600) return;     // dblclick + touch-двойной тап не должны открыть дважды
+        const sel = window.getSelection();
+        let selText = sel ? sel.toString().trim() : '';
+        let word = cleanWord(selText);
+        let anchor = null;
+
+        if (sel && sel.rangeCount && selText) {
+            const r = sel.getRangeAt(0);
+            anchor = { node: r.startContainer, offset: r.startOffset };
+        }
         if (!word) {
-            const range = document.caretRangeFromPoint
-                ? document.caretRangeFromPoint(x, y)
-                : (document.caretPositionFromPoint
-                    ? (function() {
-                        const pos = document.caretPositionFromPoint(x, y);
-                        if (!pos) return null;
-                        const r = document.createRange();
-                        r.setStart(pos.offsetNode, pos.offset);
-                        r.setEnd(pos.offsetNode, pos.offset);
-                        return r;
-                    })() : null);
-            if (range) {
-                range.expand && range.expand('word');
-                sel.removeAllRanges();
-                sel.addRange(range);
-                word = sel.toString().trim();
-                word = word.replace(/^[\s.,!?;:"'()«»\-–—\[\]]+|[\s.,!?;:"'()«»\-–—\[\]]+$/g, '');
+            const pos = caretFromPoint(x, y);
+            if (pos && pos.node && el.contains(pos.node)) {
+                const range = document.createRange();
+                range.setStart(pos.node, pos.offset);
+                range.setEnd(pos.node, pos.offset);
+                if (range.expand) range.expand('word');
+                if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+                word = cleanWord(range.toString());
+                anchor = { node: range.startContainer, offset: range.startOffset };
             }
         }
-        if (!word || word.split(/\s+/).length > 4) return;
-        showCard(word, $(el));
+        if (!anchor) { const pos = caretFromPoint(x, y); if (pos) anchor = pos; }
+        if (!word && !anchor) return;
+
+        // Абзац и предложение берём из ВСЕГО блока, а не из одного текстового узла —
+        // поэтому курсив, жирный, кавычки, подсветка и т.п. больше не обрезают контекст.
+        let paragraph = '', sentence = '';
+        if (anchor && anchor.node && el.contains(anchor.node)) {
+            const block = getBlockEl(anchor.node, el);
+            const flat  = flattenBlock(block, anchor.node, anchor.offset);
+            paragraph = paragraphAround(flat.text, flat.offset);
+            sentence  = sentenceAround(paragraph ? flat.text : '', flat.offset) || sentenceAround(flat.text, flat.offset);
+            if (paragraph && sentence && paragraph.indexOf(sentence) < 0) sentence = sentenceAround(paragraph, Math.max(0, paragraph.toLowerCase().indexOf((word || '').toLowerCase())));
+        }
+        if (!paragraph) paragraph = ($(el).text() || '').trim();
+
+        const ctx = { word: word, sentence: sentence, paragraph: paragraph };
+        const mode = cfg().tapMode === 'paragraph' ? 'paragraph' : 'word';
+        const wordsCount = word ? word.split(/\s+/).length : 0;
+
+        _lastOpenAt = Date.now();
+        if (mode === 'paragraph' || !word) {
+            showParagraph(paragraph, $(el), ctx);
+        } else if (wordsCount > 4) {
+            // Выделена целая фраза — переводим её как текст
+            showParagraph(selText, $(el), Object.assign({}, ctx, { word: '' }));
+        } else {
+            showCard(word, $(el), ctx);
+        }
     }
+
     $(document).on('dblclick', '.mes_text', function(e) {
         if (!cfg().modWords) return;
+        if (inEditMode(e.target)) return;               // редактор сообщения — не трогаем
         e.preventDefault();
         handleWordTap(this, e.clientX, e.clientY);
     });
+
+    // Тач: считаем тапом только короткое касание БЕЗ сдвига и не сразу после прокрутки
+    const TAP_MAX_MOVE = 8, TAP_MAX_MS = 350, DOUBLE_MS = 350, DOUBLE_DIST = 30, SCROLL_QUIET_MS = 300;
+    let _tStart = null, _lastTap = null, _lastScrollAt = 0;
+    window.addEventListener('scroll', () => { _lastScrollAt = Date.now(); }, { capture: true, passive: true });
+
+    $(document).on('touchstart', '.mes_text', function(e) {
+        const oe = e.originalEvent;
+        if (inEditMode(e.target) || !oe.touches || oe.touches.length !== 1) { _tStart = null; _lastTap = null; return; }
+        const t = oe.touches[0];
+        _tStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+    });
+    $(document).on('touchmove', '.mes_text', function(e) {
+        if (!_tStart) return;
+        const t = e.originalEvent.touches[0];
+        if (!t || Math.hypot(t.clientX - _tStart.x, t.clientY - _tStart.y) > TAP_MAX_MOVE) { _tStart = null; _lastTap = null; }
+    });
+    $(document).on('touchcancel', '.mes_text', function() { _tStart = null; _lastTap = null; });
     $(document).on('touchend', '.mes_text', function(e) {
         if (!cfg().modWords) return;
-        const now = Date.now(), el = this;
+        const start = _tStart; _tStart = null;
+        if (!start || inEditMode(e.target)) { _lastTap = null; return; }   // это был скролл/жест
+        const now = Date.now();
+        if (now - start.t > TAP_MAX_MS) { _lastTap = null; return; }       // долгое нажатие = выделение
+        if (now - _lastScrollAt < SCROLL_QUIET_MS) { _lastTap = null; return; }   // тап сразу после прокрутки
         const t = e.changedTouches[0];
-        const x = t ? t.clientX : 0, y = t ? t.clientY : 0;
-        if (_tsLastEl === el && now - _tsLastTap < 400) {
-            clearTimeout(_tsTapTimer);
-            _tsLastTap = 0; _tsLastEl = null;
+        const x = t ? t.clientX : start.x, y = t ? t.clientY : start.y;
+        if (_lastTap && _lastTap.el === this && now - _lastTap.time < DOUBLE_MS &&
+            Math.hypot(x - _lastTap.x, y - _lastTap.y) < DOUBLE_DIST) {
+            _lastTap = null;
             e.preventDefault();
+            const el = this;
             setTimeout(() => handleWordTap(el, x, y), 30);
         } else {
-            _tsLastTap = now; _tsLastEl = el;
-            clearTimeout(_tsTapTimer);
-            _tsTapTimer = setTimeout(() => { _tsLastTap = 0; _tsLastEl = null; }, 420);
+            _lastTap = { el: this, time: now, x: x, y: y };
         }
     });
 
@@ -1559,11 +1767,13 @@ function setupEvents() {
     }
     $(document).on('mouseup', '.mes_text', function(e) {
         hideFab();
+        if (inEditMode(e.target)) return;
         const sel  = window.getSelection();
         const text = sel ? sel.toString().trim() : '';
         showFab(text, e.pageX, e.pageY);
     });
     $(document).on('touchend', '.mes_text', function(e) {
+        if (inEditMode(e.target)) return;
         const t = e.changedTouches[0];
         if (!t) return;
         setTimeout(function() {
@@ -1704,7 +1914,7 @@ jQuery(async function() {
         $('body').append(buildUiHtml());
         setupEvents();
         applyVars();
-        applyCustomCss();
+        document.getElementById('ts-css-custom')?.remove();   // остатки старого Custom CSS
         updateFmBadge();
         scanFieldsAndInject();
         initFieldObserver();
