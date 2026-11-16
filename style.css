@@ -1,13 +1,11 @@
 /* ════════════════════════════════════════════════════════════
-   Переводчик: Набор (Translator Suite) v1.0
-   Единая система стилей для модулей «Слова» и «Поля».
-   Цвета берутся из темы Таверны (--SmartTheme*) и могут быть переопределены в настройках.
+   Переводчик: Набор (Translator Suite) v1.3 — стиль «Редакторский»
+   Типографика с засечками, тонкие линии вместо коробок, строгие
+   кнопки. ПК: карточка по центру. Телефон: нижняя шторка.
+   Цвета берутся из темы Таверны (--SmartTheme*) и могут быть
+   переопределены в настройках (вкладка «Цвета»).
    ════════════════════════════════════════════════════════════ */
 
-/* ── Цвета по умолчанию = цвета темы Таверны (светлой или тёмной) ──
-   --ts-auto-*  вычисляются из переменных темы ST (--SmartTheme*).
-   --ts-*       = auto, пока пользователь не переопределил цвет в настройках
-                  (переопределения добавляет JS в <style id="ts-css-vars">). */
 :root {
     --ts-auto-text:      var(--SmartThemeBodyColor, #e6e6ee);
     --ts-auto-cardBg:    var(--SmartThemeBlurTintColor, #17171f);
@@ -18,43 +16,39 @@
     --ts-cardBg:    var(--ts-auto-cardBg);
     --ts-accent:    var(--ts-auto-accent);
     --ts-bg:        var(--ts-auto-bg);
-    --ts-surfaceBg: color-mix(in srgb, var(--ts-text) 8%, var(--ts-cardBg));
-    --ts-textMuted: color-mix(in srgb, var(--ts-text) 58%, var(--ts-cardBg));
+    --ts-surfaceBg: color-mix(in srgb, var(--ts-text) 6%, var(--ts-cardBg));
+    --ts-textMuted: color-mix(in srgb, var(--ts-text) 55%, var(--ts-cardBg));
     --ts-border:    color-mix(in srgb, var(--ts-text) 16%, var(--ts-cardBg));
-    --ts-addBtn:    var(--ts-accent);
-    --ts-closBtn:   var(--ts-surfaceBg);
+    --ts-addBtn:    var(--ts-text);
+    --ts-closBtn:   transparent;
 
-    /* Цвет текста/иконок на акцентных кнопках — чёрный или белый по яркости фона */
     --ts-onAccent:  #fff;
-    --ts-onAdd:     #fff;
+    --ts-onAdd:     var(--ts-cardBg);
 
-    --ts-radius:    18px;
-    --ts-spring:    cubic-bezier(0.34, 1.4, 0.64, 1);
-    --ts-shadow:    0 18px 60px rgba(0,0,0,0.45), 0 0 0 1px color-mix(in srgb, var(--ts-text) 8%, transparent);
+    --ts-ink:       color-mix(in srgb, var(--ts-text) 78%, transparent);
+    --ts-serif:     Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --ts-caps:      0.12em;
+    --ts-radius:    4px;
+    --ts-r:         2px;
+    --ts-ease:      cubic-bezier(0.22, 0.9, 0.3, 1);
+    --ts-spring:    cubic-bezier(0.22, 0.9, 0.3, 1);
+    --ts-tint:      color-mix(in srgb, var(--ts-accent) 12%, transparent);
+    --ts-shadow:    0 24px 60px -16px rgba(0,0,0,0.5);
 }
 @supports (color: oklch(from red l c h)) {
     :root {
         --ts-onAccent: oklch(from var(--ts-accent) clamp(0, (0.68 - l) * 1000, 1) 0 0);
-        --ts-onAdd:    oklch(from var(--ts-addBtn) clamp(0, (0.68 - l) * 1000, 1) 0 0);
     }
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Оверлеи (общий стиль)
-   ────────────────────────────────────────────────────────────── */
-#ts-overlay,
-#ts-vo,
-#ts-so,
-#ts-to,
-#ts-fm {
+/* ── Оверлеи ── */
+#ts-overlay, #ts-vo, #ts-so, #ts-to, #ts-fm {
     position: fixed;
     inset: 0;
     width: 100%;
     height: 100%;
     height: 100dvh;
-    background: color-mix(in srgb, var(--ts-bg) 72%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--ts-bg) 60%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -64,976 +58,567 @@
     z-index: 99999;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.18s ease;
+    transition: opacity 0.2s ease;
 }
-#ts-overlay.ts-on,
-#ts-vo.ts-on,
-#ts-so.ts-on,
-#ts-to.ts-on,
-#ts-fm.ts-on {
+#ts-overlay.ts-on, #ts-vo.ts-on, #ts-so.ts-on, #ts-to.ts-on, #ts-fm.ts-on {
     opacity: 1;
     pointer-events: all;
 }
 
-/* ── Анимация появления ── */
-#ts-card,
-#ts-vp,
-#ts-sp,
-#ts-tp,
-#ts-fm-card {
-    transform: scale(0.92) translateY(12px);
-    transition: transform 0.25s var(--ts-spring), opacity 0.2s ease;
+/* Окна: плотная «бумага» с тонкой рамкой */
+#ts-card, #ts-vp, #ts-sp, #ts-tp, #ts-fm-card {
+    background: var(--ts-cardBg);
+    border: 1px solid var(--ts-ink);
+    border-radius: var(--ts-radius);
+    box-shadow: var(--ts-shadow);
+    color: var(--ts-text);
+    transform: translateY(8px);
+    transition: transform 0.26s var(--ts-ease);
 }
 #ts-overlay.ts-on #ts-card,
-#ts-vo.ts-on      #ts-vp,
-#ts-so.ts-on      #ts-sp,
-#ts-to.ts-on      #ts-tp,
-#ts-fm.ts-on      #ts-fm-card {
-    transform: scale(1) translateY(0);
-}
+#ts-vo.ts-on #ts-vp,
+#ts-so.ts-on #ts-sp,
+#ts-to.ts-on #ts-tp,
+#ts-fm.ts-on #ts-fm-card { transform: none; }
 
-/* ──────────────────────────────────────────────────────────────
-   Иконочные кнопки (общие)
-   ────────────────────────────────────────────────────────────── */
+/* ── Иконочные кнопки: просто значки, без заливки ── */
 .ts-hb {
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 9px;
-    width: 34px;
-    height: 34px;
+    background: none;
+    border: 0;
+    border-radius: var(--ts-r);
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--ts-textMuted);
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.14s, color 0.14s, border-color 0.14s;
     padding: 0;
+    transition: color 0.16s, background 0.16s;
 }
-.ts-hb:hover {
-    background: var(--ts-accent);
-    border-color: var(--ts-accent);
-    color: var(--ts-onAccent);
-}
+.ts-hb:hover { color: var(--ts-accent); background: var(--ts-tint); }
 
 /* ──────────────────────────────────────────────────────────────
-   Карточка перевода слова
+   Карточка слова
    ────────────────────────────────────────────────────────────── */
 #ts-card {
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: var(--ts-radius);
-    padding: 22px 20px 18px;
-    width: min(380px, 92vw);
+    padding: 26px 26px 22px;
+    width: min(420px, 92vw);
     max-width: 100%;
     max-height: min(88vh, calc(100dvh - 40px));
     overflow-y: auto;
-    box-shadow: var(--ts-shadow);
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
 }
+#ts-card::-webkit-scrollbar { display: none; }
+#ts-seg, #ts-foot { display: none; }
 
-#ts-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 14px;
-}
+#ts-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+#ts-wl { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 #ts-title {
-    font-size: 28px;
-    font-weight: 700;
+    font-family: var(--ts-serif);
+    font-size: 40px;
+    font-weight: 400;
     color: var(--ts-text);
-    letter-spacing: -0.5px;
-    line-height: 1.15;
+    letter-spacing: -0.01em;
+    line-height: 1.08;
     word-break: break-word;
-    flex: 1;
 }
-.ts-hbtns { display: flex; gap: 6px; flex-shrink: 0; margin-top: 2px; }
+#ts-title i { font-size: 0.5em; margin-right: 8px; color: var(--ts-textMuted); }
+.ts-hbtns { display: flex; gap: 2px; flex-shrink: 0; margin: -4px -8px 0 0; }
 
-#ts-trow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 14px;
-    min-height: 30px;
-}
-.ts-arr { color: var(--ts-accent); font-size: 15px; flex-shrink: 0; }
-#ts-tr {
-    color: var(--ts-accent);
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: -0.2px;
-    flex: 1;
-}
-#ts-spin { color: var(--ts-textMuted); font-size: 16px; }
-
-#ts-cru {
-    font-size: 15px;
-    line-height: 1.7;
-    color: var(--ts-text);
-    margin-bottom: 8px;
-    min-height: 20px;
-}
-#ts-cru strong { color: var(--ts-accent); font-weight: 700; }
-#ts-cen {
-    font-size: 13px;
+#ts-count {
+    order: 2;
+    margin: 10px 0 0;
+    padding: 0;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: var(--ts-caps);
     color: var(--ts-textMuted);
-    line-height: 1.55;
-    font-style: italic;
-    margin-bottom: 20px;
 }
+#ts-count i { margin-right: 5px; opacity: 0.7; }
+
+#ts-trow { order: 3; display: flex; align-items: center; gap: 10px; margin-top: 8px; min-height: 30px; }
+.ts-arr { display: none; }
+#ts-tr {
+    font-family: var(--ts-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 26px;
+    line-height: 1.25;
+    color: var(--ts-accent);
+    flex: 1;
+}
+#ts-spin { color: var(--ts-textMuted); font-size: 15px; }
+
+#ts-ctx { margin: 20px 0 22px; padding-top: 18px; border-top: 1px solid var(--ts-border); }
+#ts-cru { font-size: 15px; line-height: 1.7; color: var(--ts-text); margin-bottom: 8px; }
+#ts-cru:empty { display: none; }
+#ts-cru strong, #ts-cru b { color: var(--ts-accent); font-weight: 600; }
+#ts-cen { font-size: 13px; color: var(--ts-textMuted); line-height: 1.6; font-style: italic; }
 
 #ts-btns { display: flex; gap: 10px; }
-#ts-bclose,
-#ts-badd {
+#ts-bclose, #ts-badd {
     flex: 1;
-    padding: 12px 0;
-    border: none;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
+    height: 44px;
+    border: 1px solid var(--ts-ink);
+    border-radius: var(--ts-r);
+    font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    transition: opacity 0.14s, background 0.22s, color 0.22s;
-    letter-spacing: 0.1px;
+    gap: 8px;
+    font-family: inherit;
+    transition: background 0.18s, color 0.18s, opacity 0.18s;
 }
-#ts-bclose {
-    background: var(--ts-closBtn);
-    color: var(--ts-textMuted);
-    border: 1px solid var(--ts-border);
-}
-#ts-bclose:hover { opacity: 0.75; }
-#ts-badd { background: var(--ts-addBtn); color: var(--ts-onAdd); border: 1px solid transparent; }
+#ts-bclose { background: transparent; color: var(--ts-text); }
+#ts-bclose:hover { background: var(--ts-surfaceBg); }
+#ts-badd { background: var(--ts-addBtn); color: var(--ts-onAdd); }
 #ts-badd:hover { opacity: 0.88; }
-#ts-badd.ts-already {
-    background: var(--ts-surfaceBg);
-    color: var(--ts-textMuted);
-    border-color: var(--ts-border);
-}
-#ts-badd.ts-saved { background: #16a34a; color: #fff; }
+#ts-badd.ts-already { background: transparent; color: var(--ts-textMuted); border-color: var(--ts-border); }
+#ts-badd.ts-saved { background: var(--ts-accent); color: var(--ts-onAccent); border-color: var(--ts-accent); }
+.ts-more { display: none; }
+
+/* ── Весь абзац ── */
+#ts-card.ts-para #ts-title { font-family: inherit; font-size: 10.5px; text-transform: uppercase; letter-spacing: var(--ts-caps); color: var(--ts-textMuted); }
+#ts-card.ts-para #ts-trow { align-items: flex-start; margin-top: 12px; }
+#ts-card.ts-para #ts-tr { font-family: inherit; font-style: normal; font-size: 16px; line-height: 1.7; white-space: pre-wrap; color: var(--ts-text); }
+#ts-card.ts-para #ts-cen { white-space: pre-wrap; max-height: 30vh; overflow-y: auto; }
 
 /* ──────────────────────────────────────────────────────────────
    Словарь и Избранное
    ────────────────────────────────────────────────────────────── */
-#ts-vp,
-#ts-tp {
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: var(--ts-radius);
+#ts-vp, #ts-tp {
     width: min(480px, 95vw);
     max-width: 100%;
     max-height: min(84vh, calc(100dvh - 40px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: var(--ts-shadow);
 }
-
 .ts-vhead {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 15px 12px;
-    border-bottom: 1px solid var(--ts-border);
+    padding: 18px 16px 14px 24px;
     flex-shrink: 0;
     gap: 8px;
+    border-bottom: 1px solid var(--ts-border);
 }
 .ts-vhead-title {
-    font-size: 14px;
-    font-weight: 700;
+    font-family: var(--ts-serif);
+    font-size: 22px;
+    font-weight: 400;
     color: var(--ts-text);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex: 1;
     min-width: 0;
 }
-.ts-vha { display: flex; gap: 6px; flex-shrink: 0; }
-
+.ts-vhead-title i { color: var(--ts-accent); font-size: 13px; }
+.ts-vha { display: flex; gap: 2px; flex-shrink: 0; }
 .ts-badge {
-    background: var(--ts-surfaceBg);
+    font-family: system-ui, sans-serif;
     border: 1px solid var(--ts-border);
-    border-radius: 4px;
-    padding: 1px 7px;
-    font-size: 10px;
-    font-weight: 600;
+    border-radius: var(--ts-r);
+    padding: 1px 8px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: var(--ts-caps);
     color: var(--ts-textMuted);
-    text-transform: none;
-    letter-spacing: 0.02em;
-    margin-left: 6px;
 }
+.ts-badge:empty { display: none; }
 
 #ts-vsearch {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
+    margin: 0 24px;
     border-bottom: 1px solid var(--ts-border);
     flex-shrink: 0;
+    transition: border-color 0.16s;
 }
-.ts-si { color: var(--ts-textMuted); font-size: 13px; flex-shrink: 0; }
+#ts-vsearch:focus-within { border-color: var(--ts-text); }
+.ts-si { color: var(--ts-textMuted); font-size: 12px; }
 #ts-vq {
-    flex: 1;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 8px;
-    padding: 7px 11px;
-    color: var(--ts-text);
-    font-size: 13px;
-    outline: none;
-    transition: border-color 0.14s;
+    flex: 1; background: none; border: 0; padding: 14px 0;
+    color: var(--ts-text); font-size: 14px; outline: none; box-shadow: none; font-family: inherit;
 }
 #ts-vq::placeholder { color: var(--ts-textMuted); }
-#ts-vq:focus { border-color: var(--ts-accent); }
-#ts-vcnt { font-size: 11px; color: var(--ts-textMuted); white-space: nowrap; flex-shrink: 0; }
+#ts-vcnt { font-size: 10.5px; text-transform: uppercase; letter-spacing: var(--ts-caps); color: var(--ts-textMuted); white-space: nowrap; }
 
-#ts-vl,
-#ts-tl {
-    overflow-y: auto;
-    flex: 1;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--ts-border) transparent;
+#ts-vl, #ts-tl {
+    overflow-y: auto; flex: 1; padding: 4px 0 10px;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; scrollbar-color: var(--ts-border) transparent;
 }
-#ts-vl::-webkit-scrollbar,
-#ts-tl::-webkit-scrollbar { width: 4px; }
-#ts-vl::-webkit-scrollbar-thumb,
-#ts-tl::-webkit-scrollbar-thumb { background: var(--ts-border); border-radius: 2px; }
+#ts-vl::-webkit-scrollbar, #ts-tl::-webkit-scrollbar { width: 4px; }
+#ts-vl::-webkit-scrollbar-thumb, #ts-tl::-webkit-scrollbar-thumb { background: var(--ts-border); }
 
-.ts-ve {
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--ts-border);
-    position: relative;
-    transition: background 0.12s;
-}
-.ts-ve:hover { background: color-mix(in srgb, var(--ts-text) 4%, transparent); }
-
+.ts-ve { margin: 0 24px; padding: 15px 0; border-bottom: 1px solid var(--ts-border); position: relative; }
+.ts-ve:last-child { border-bottom: 0; }
 .ts-vdel {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: var(--ts-border);
-    font-size: 11px;
-    cursor: pointer;
-    padding: 4px 7px;
-    border-radius: 6px;
-    transition: color 0.14s, background 0.14s;
+    position: absolute; top: 12px; right: -8px;
+    background: none; border: none; color: var(--ts-textMuted); opacity: 0;
+    font-size: 12px; cursor: pointer; padding: 6px 8px; border-radius: var(--ts-r);
+    transition: color 0.14s, opacity 0.14s;
 }
-.ts-vdel:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+.ts-ve:hover .ts-vdel { opacity: 0.8; }
+.ts-vdel:hover { opacity: 1 !important; color: #c0392b; }
 
-.ts-ve-words {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 5px;
-    padding-right: 28px;
-}
-.ts-vw { font-size: 14px; font-weight: 600; color: var(--ts-text); }
-.ts-va { font-size: 11px; color: var(--ts-accent); flex-shrink: 0; }
-.ts-vt { font-size: 14px; font-weight: 600; color: var(--ts-accent); }
+.ts-ve-words { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; padding-right: 28px; }
+.ts-vw { font-family: var(--ts-serif); font-size: 19px; font-weight: 400; color: var(--ts-text); }
+.ts-va { font-size: 11px; color: var(--ts-textMuted); }
+.ts-vt { font-family: var(--ts-serif); font-style: italic; font-size: 19px; color: var(--ts-accent); }
+.ts-ve-ctx  { font-size: 13px; color: var(--ts-textMuted); line-height: 1.55; margin-bottom: 3px; }
+.ts-ve-orig { font-size: 12px; color: var(--ts-textMuted); opacity: 0.7; font-style: italic; margin-bottom: 6px; }
+.ts-ve-meta { font-size: 10.5px; text-transform: uppercase; letter-spacing: var(--ts-caps); color: var(--ts-textMuted); display: flex; align-items: center; gap: 6px; opacity: 0.75; }
 
-.ts-ve-ctx  { font-size: 12px; color: var(--ts-textMuted); line-height: 1.45; margin-bottom: 3px; }
-.ts-ve-orig { font-size: 11px; color: var(--ts-border); font-style: italic; margin-bottom: 5px; }
-.ts-ve-meta {
-    font-size: 11px;
-    color: var(--ts-textMuted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    opacity: 0.7;
-}
+.ts-vempty { text-align: center; color: var(--ts-textMuted); padding: 54px 24px; font-family: var(--ts-serif); font-style: italic; font-size: 17px; line-height: 2; }
+.ts-vempty small { font-family: system-ui, sans-serif; font-style: normal; font-size: 12px; opacity: 0.8; }
 
-.ts-vempty {
-    text-align: center;
-    color: var(--ts-textMuted);
-    padding: 50px 20px;
-    font-size: 15px;
-    line-height: 2;
-}
-.ts-vempty small { font-size: 12px; opacity: 0.7; }
+.ts-te-quote { font-family: var(--ts-serif); font-size: 16px; line-height: 1.7; color: var(--ts-text); margin-bottom: 6px; padding-right: 28px; font-style: italic; }
+.ts-qi { color: var(--ts-accent); font-size: 11px; margin-right: 6px; opacity: 0.7; }
 
-.ts-te-quote {
-    font-size: 14px;
-    line-height: 1.65;
-    color: var(--ts-text);
-    margin-bottom: 6px;
-    padding-right: 28px;
-    font-style: italic;
-}
-.ts-qi { color: var(--ts-accent); font-size: 11px; margin-right: 5px; opacity: 0.6; }
-
-/* ── Подсветка слов в чате ── */
 mark.ts-highlight {
-    background: transparent;
-    border-bottom: 2px solid var(--ts-accent);
-    color: inherit;
-    padding: 0;
-    cursor: pointer;
-    transition: background 0.12s;
+    background: transparent; color: inherit; padding: 0; cursor: pointer;
+    border-bottom: 1px solid var(--ts-accent);
+    transition: background 0.14s;
 }
-mark.ts-highlight:hover {
-    background: color-mix(in srgb, var(--ts-accent) 15%, transparent);
-    border-radius: 3px;
-}
+mark.ts-highlight:hover { background: var(--ts-tint); }
 
 /* ──────────────────────────────────────────────────────────────
    Настройки
    ────────────────────────────────────────────────────────────── */
 #ts-sp {
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: var(--ts-radius);
     width: min(580px, 96vw);
     max-width: 100%;
     max-height: min(88vh, calc(100dvh - 40px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: var(--ts-shadow);
 }
-
 #ts-shead {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 15px 12px;
-    border-bottom: 1px solid var(--ts-border);
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--ts-text);
-    flex-shrink: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 18px 16px 12px 24px;
+    font-family: var(--ts-serif); font-size: 22px; font-weight: 400;
+    color: var(--ts-text); flex-shrink: 0;
 }
-#ts-shead i { margin-right: 6px; color: var(--ts-accent); }
+#ts-shead i { margin-right: 10px; color: var(--ts-accent); font-size: 13px; }
 
 #ts-stabs {
-    display: flex;
-    gap: 2px;
-    padding: 10px 12px 0;
+    display: flex; gap: 22px; padding: 0 24px; flex-shrink: 0;
+    overflow-x: auto; scrollbar-width: none;
     border-bottom: 1px solid var(--ts-border);
-    flex-shrink: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
 }
 #ts-stabs::-webkit-scrollbar { display: none; }
 .ts-stab {
-    background: none;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 8px 8px 0 0;
-    color: var(--ts-textMuted);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    transition: color 0.14s, background 0.14s;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    white-space: nowrap;
+    background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    padding: 10px 0; color: var(--ts-textMuted); font-size: 13px; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; gap: 7px;
+    transition: color 0.16s, border-color 0.16s; white-space: nowrap; font-family: inherit;
 }
-.ts-stab:hover { color: var(--ts-text); background: color-mix(in srgb, var(--ts-text) 7%, transparent); }
-.ts-stab.ts-son {
-    color: var(--ts-accent);
-    border-bottom-color: var(--ts-accent);
-    background: color-mix(in srgb, var(--ts-accent) 8%, transparent);
-}
+.ts-stab:hover { color: var(--ts-text); }
+.ts-stab.ts-son { color: var(--ts-accent); border-bottom-color: var(--ts-accent); }
 
 .ts-spane {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--ts-border) transparent;
+    flex: 1; overflow-y: auto; padding: 18px 24px;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; scrollbar-color: var(--ts-border) transparent;
 }
 .ts-spane::-webkit-scrollbar { width: 4px; }
-.ts-spane::-webkit-scrollbar-thumb { background: var(--ts-border); border-radius: 2px; }
+.ts-spane::-webkit-scrollbar-thumb { background: var(--ts-border); }
 
-/* ── Поля ── */
-.ts-sfield { margin-bottom: 14px; }
+.ts-sfield { margin-bottom: 18px; }
 .ts-sfield label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--ts-textMuted);
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    margin-bottom: 7px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: var(--ts-caps);
+    color: var(--ts-textMuted); margin-bottom: 8px;
 }
+.ts-sfield label i { font-size: 10px; opacity: 0.8; }
 .ts-sfield select,
 .ts-sfield > input[type="text"],
 .ts-sfield > input[type="password"],
 .ts-sfield textarea {
-    width: 100%;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    padding: 9px 12px;
-    color: var(--ts-text);
-    font-size: 14px;
-    outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.14s, box-shadow 0.14s;
-    -webkit-appearance: none;
-    appearance: none;
-    font-family: inherit;
-    line-height: 1.5;
+    width: 100%; background: transparent;
+    border: 1px solid var(--ts-border); border-radius: var(--ts-r);
+    padding: 11px 13px; color: var(--ts-text); font-size: 14px; outline: none; box-sizing: border-box;
+    transition: border-color 0.16s;
+    -webkit-appearance: none; appearance: none; font-family: inherit; line-height: 1.5;
 }
 .ts-sfield textarea { resize: vertical; min-height: 100px; }
 .ts-sfield select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%2368687a' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 32px;
-    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.5 1.5L6 6l4.5-4.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 13px center; padding-right: 36px; cursor: pointer;
 }
-.ts-sfield select:focus,
-.ts-sfield input:focus,
-.ts-sfield textarea:focus {
-    border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 15%, transparent);
-}
+.ts-sfield select:focus, .ts-sfield input:focus, .ts-sfield textarea:focus { border-color: var(--ts-text); }
 .ts-sfield select option { background: var(--ts-cardBg); color: var(--ts-text); }
 
 .ts-row { display: flex; gap: 8px; align-items: center; }
 .ts-row > input { flex: 1; }
-
 .ts-pw { display: flex; position: relative; }
 .ts-pw > input {
-    flex: 1;
-    padding-right: 42px;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    padding-left: 12px;
-    color: var(--ts-text);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.14s, box-shadow 0.14s;
-    width: 100%;
-    box-sizing: border-box;
-    height: 38px;
+    flex: 1; padding: 0 44px 0 13px; background: transparent;
+    border: 1px solid var(--ts-border); border-radius: var(--ts-r);
+    color: var(--ts-text); font-size: 14px; outline: none; transition: border-color 0.16s;
+    width: 100%; box-sizing: border-box; height: 42px;
 }
-.ts-pw > input:focus {
-    border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 15%, transparent);
-}
+.ts-pw > input:focus { border-color: var(--ts-text); }
 .ts-eye {
     position: absolute !important; right: 5px !important; top: 50% !important;
-    transform: translateY(-50%) !important;
-    background: none !important; border: none !important;
-    width: 32px !important; height: 32px !important;
-    color: var(--ts-textMuted) !important;
+    transform: translateY(-50%) !important; background: none !important; border: none !important;
+    width: 32px !important; height: 32px !important; color: var(--ts-textMuted) !important;
 }
 .ts-eye:hover { background: none !important; color: var(--ts-accent) !important; }
 
-.ts-note { font-size: 11px; color: var(--ts-textMuted); margin-top: 5px; padding-left: 2px; }
-.ts-req  { color: #f59e0b !important; }
-
+.ts-note { font-size: 12px; color: var(--ts-textMuted); margin-top: 6px; line-height: 1.5; }
+.ts-req  { color: #b9770e !important; }
 #ts-s-pinfo {
-    background: color-mix(in srgb, var(--ts-accent) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--ts-accent) 25%, transparent);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 12.5px;
-    color: var(--ts-text);
-    line-height: 1.6;
-    margin-top: 6px;
+    border-left: 2px solid var(--ts-accent); padding: 4px 0 4px 14px;
+    font-size: 12.5px; color: var(--ts-text); line-height: 1.6; margin-top: 8px;
 }
 
-/* ── Toggle rows ── */
 .ts-toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 16px;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 14px;
-    margin-bottom: 10px;
-    transition: border-color 0.14s;
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
+    padding: 16px 0; border-bottom: 1px solid var(--ts-border);
 }
-.ts-toggle-row:hover { border-color: var(--ts-accent); }
-
 .ts-toggle-info { flex: 1; min-width: 0; }
-.ts-toggle-title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ts-text);
-    margin-bottom: 4px;
-}
-.ts-toggle-title i { color: var(--ts-accent); }
-.ts-toggle-desc {
-    display: block;
-    font-size: 12px;
-    color: var(--ts-textMuted);
-    line-height: 1.5;
-}
+.ts-toggle-title { display: flex; align-items: center; gap: 8px; font-family: var(--ts-serif); font-size: 17px; color: var(--ts-text); margin-bottom: 4px; }
+.ts-toggle-title i { color: var(--ts-accent); font-size: 12px; }
+.ts-toggle-desc { display: block; font-size: 12.5px; color: var(--ts-textMuted); line-height: 1.55; }
 
-.ts-switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
+.ts-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
 .ts-switch input { opacity: 0; width: 0; height: 0; }
-.ts-slider {
-    position: absolute; cursor: pointer;
-    inset: 0;
-    background: var(--ts-border);
-    transition: background 0.22s;
-    border-radius: 26px;
-}
+.ts-slider { position: absolute; cursor: pointer; inset: 0; border: 1px solid var(--ts-ink); border-radius: 24px; transition: background 0.2s; }
 .ts-slider:before {
-    content: '';
-    position: absolute;
-    height: 20px; width: 20px;
-    left: 3px; bottom: 3px;
-    background: #fff;
-    border-radius: 50%;
-    transition: transform 0.22s var(--ts-spring);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px;
+    background: var(--ts-text); border-radius: 50%; transition: transform 0.22s var(--ts-ease), background 0.2s;
 }
-.ts-switch input:checked + .ts-slider { background: var(--ts-accent); }
-.ts-switch input:checked + .ts-slider:before { transform: translateX(22px); }
+.ts-switch input:checked + .ts-slider { background: var(--ts-accent); border-color: var(--ts-accent); }
+.ts-switch input:checked + .ts-slider:before { transform: translateX(20px); background: var(--ts-onAccent); }
 
-/* ── Цвета ── */
-#ts-cgrid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 14px;
-}
-@media (max-width: 480px) { #ts-cgrid { grid-template-columns: 1fr; } }
-.ts-cr {
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    padding: 10px 12px;
-    transition: border-color 0.14s;
-}
-.ts-cr:hover { border-color: var(--ts-accent); }
-.ts-cr-lbl {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--ts-textMuted);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-}
+#ts-cgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.ts-cr { border: 1px solid var(--ts-border); border-radius: var(--ts-r); padding: 12px 14px; }
+.ts-cr-lbl { display: block; font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: var(--ts-caps); color: var(--ts-textMuted); margin-bottom: 9px; }
 .ts-cr-inp { display: flex; align-items: center; gap: 8px; }
-.ts-cpick {
-    width: 34px; height: 34px;
-    border: none; border-radius: 7px;
-    cursor: pointer; padding: 0;
-    flex-shrink: 0; background: none; outline: none;
-}
-.ts-cpick::-webkit-color-swatch-wrapper { padding: 0; border-radius: 7px; }
-.ts-cpick::-webkit-color-swatch { border: none; border-radius: 7px; }
+.ts-cpick { width: 32px; height: 32px; border: none; border-radius: var(--ts-r); cursor: pointer; padding: 0; flex-shrink: 0; background: none; outline: none; }
+.ts-cpick::-webkit-color-swatch-wrapper { padding: 0; }
+.ts-cpick::-webkit-color-swatch { border: 1px solid var(--ts-border); border-radius: var(--ts-r); }
 .ts-ctxt {
-    flex: 1; min-width: 0;
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 7px;
-    padding: 6px 8px;
-    color: var(--ts-text);
-    font-size: 12px;
-    font-family: 'Courier New', Courier, monospace;
-    outline: none;
-    transition: border-color 0.14s;
+    flex: 1; min-width: 0; background: transparent; border: 0; border-bottom: 1px solid var(--ts-border);
+    padding: 6px 2px; color: var(--ts-text); font-size: 12px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; outline: none; transition: border-color 0.16s;
 }
-.ts-ctxt:focus { border-color: var(--ts-accent); }
-
+.ts-ctxt:focus { border-color: var(--ts-text); }
 #ts-creset {
-    width: 100%;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    padding: 10px 14px;
-    color: var(--ts-textMuted);
-    font-size: 13px; font-weight: 500;
-    cursor: pointer;
+    width: 100%; background: transparent; border: 1px solid var(--ts-border); border-radius: var(--ts-r);
+    padding: 12px 14px; color: var(--ts-textMuted); font-size: 13px; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    transition: border-color 0.14s, color 0.14s;
+    transition: color 0.16s, border-color 0.16s; font-family: inherit;
 }
-#ts-creset:hover { border-color: var(--ts-accent); color: var(--ts-accent); }
+#ts-creset:hover { color: var(--ts-text); border-color: var(--ts-ink); }
 
-/* ── CSS вкладка ── */
-.ts-cssinfo {
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    padding: 12px 14px;
-    font-size: 12.5px;
-    color: var(--ts-textMuted);
-    line-height: 1.75;
-    margin-bottom: 12px;
-}
+.ts-cssinfo { border-left: 2px solid var(--ts-border); padding: 4px 0 4px 14px; font-size: 12.5px; color: var(--ts-textMuted); line-height: 1.75; margin-bottom: 14px; }
 .ts-cssinfo i { color: var(--ts-accent); margin-right: 5px; }
-.ts-cssinfo code {
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 4px;
-    padding: 1px 5px;
-    font-size: 11px;
-    color: var(--ts-accent);
-    font-family: 'Courier New', Courier, monospace;
-    margin: 0 2px;
-}
+.ts-cssinfo code { border: 1px solid var(--ts-border); border-radius: var(--ts-r); padding: 0 5px; font-size: 11px; color: var(--ts-accent); font-family: ui-monospace, Menlo, Consolas, monospace; margin: 0 2px; }
 
-/* ── Footer ── */
-#ts-sfooter {
-    padding: 12px 15px;
-    border-top: 1px solid var(--ts-border);
-    flex-shrink: 0;
-}
+#ts-sfooter { padding: 14px 24px 20px; flex-shrink: 0; border-top: 1px solid var(--ts-border); }
 #ts-s-save {
-    width: 100%;
-    background: var(--ts-accent);
-    border: none;
-    border-radius: 10px;
-    padding: 11px;
-    color: var(--ts-onAccent);
-    font-size: 14px; font-weight: 600;
-    cursor: pointer;
+    width: 100%; height: 46px; background: var(--ts-addBtn); border: 1px solid var(--ts-ink);
+    border-radius: var(--ts-r); color: var(--ts-onAdd); font-size: 15px; font-weight: 500; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    transition: opacity 0.14s, background 0.22s;
-    letter-spacing: 0.2px;
+    transition: opacity 0.16s, background 0.2s; font-family: inherit;
 }
 #ts-s-save:hover { opacity: 0.88; }
-#ts-s-save.ts-ok { background: #16a34a; }
+#ts-s-save.ts-ok { background: var(--ts-accent); border-color: var(--ts-accent); color: var(--ts-onAccent); }
 
-/* ──────────────────────────────────────────────────────────────
-   Toast
-   ────────────────────────────────────────────────────────────── */
+/* ── Toast / FAB ── */
 #ts-toast {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 50px;
-    padding: 10px 22px;
-    font-size: 14px;
-    color: var(--ts-text);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-    z-index: 999999;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    white-space: nowrap;
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ts-cardBg); border: 1px solid var(--ts-ink); border-radius: var(--ts-radius);
+    padding: 11px 22px; font-size: 14px; color: var(--ts-text); box-shadow: var(--ts-shadow);
+    z-index: 999999; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.24s var(--ts-ease); white-space: nowrap;
 }
-#ts-toast.ts-toast-show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
+#ts-toast.ts-toast-show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* ──────────────────────────────────────────────────────────────
-   Плавающая кнопка «В избранное»
-   ────────────────────────────────────────────────────────────── */
-#ts-fab {
-    position: absolute;
-    z-index: 999998;
-    transform: translateX(-50%);
-    animation: ts-fab-in 0.15s var(--ts-spring) both;
-}
+#ts-fab { position: absolute; z-index: 999998; transform: translateX(-50%); animation: ts-fab-in 0.18s var(--ts-ease) both; }
 @keyframes ts-fab-in {
-    from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.9); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1);   }
+    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 #ts-fab-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 14px;
-    border-radius: 50px;
-    border: 1px solid var(--ts-border);
-    background: var(--ts-cardBg);
-    color: var(--ts-accent);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.3);
-    white-space: nowrap;
-    transition: background 0.15s, transform 0.1s;
+    display: flex; align-items: center; gap: 7px; padding: 8px 16px;
+    border-radius: var(--ts-r); border: 1px solid var(--ts-ink);
+    background: var(--ts-cardBg); color: var(--ts-text);
+    font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: var(--ts-shadow);
+    white-space: nowrap; font-family: inherit; transition: background 0.16s;
 }
-#ts-fab-btn:hover { background: var(--ts-surfaceBg); transform: scale(1.04); }
-#ts-fab-btn i { font-size: 12px; }
+#ts-fab-btn:hover { background: var(--ts-surfaceBg); }
+#ts-fab-btn i { font-size: 12px; color: var(--ts-accent); }
 
-/* ──────────────────────────────────────────────────────────────
-   МОДУЛЬ «ПОЛЯ» — кнопка в углу текстареа
-   ────────────────────────────────────────────────────────────── */
+/* ── Модуль «Поля»: кнопка в углу ── */
 .ts-field-btn {
-    position: fixed;
-    display: none;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    align-items: center;
-    justify-content: center;
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 7px;
-    cursor: pointer;
-    color: var(--ts-accent);
-    opacity: 0;
-    transition: opacity 0.15s, background 0.15s, transform 0.12s, border-color 0.15s, color 0.15s;
-    z-index: 99998;
-    line-height: 1;
-    pointer-events: none;
-    font-size: 14px;
+    position: fixed; display: none; width: 30px; height: 30px; padding: 0;
+    align-items: center; justify-content: center;
+    background: var(--ts-cardBg); border: 1px solid var(--ts-ink); border-radius: var(--ts-r);
+    cursor: pointer; color: var(--ts-text); opacity: 0;
+    transition: opacity 0.16s, background 0.16s, color 0.16s;
+    z-index: 99998; line-height: 1; pointer-events: none; font-size: 13px;
 }
-.ts-field-btn.ts-fb-visible {
-    display: flex;
-    opacity: 0.85;
-    pointer-events: auto;
-}
-.ts-field-btn:hover {
-    opacity: 1 !important;
-    background: var(--ts-accent);
-    border-color: var(--ts-accent);
-    color: var(--ts-onAccent);
-    transform: scale(1.08);
-}
+.ts-field-btn.ts-fb-visible { display: flex; opacity: 0.85; pointer-events: auto; }
+.ts-field-btn:hover { opacity: 1 !important; background: var(--ts-text); color: var(--ts-cardBg); }
 .ts-field-btn i { pointer-events: none; }
 
-/* ──────────────────────────────────────────────────────────────
-   Модальное окно перевода полей
-   ────────────────────────────────────────────────────────────── */
+/* ── Окно перевода полей ── */
 #ts-fm-card {
-    background: var(--ts-cardBg);
-    border: 1px solid var(--ts-border);
-    border-radius: var(--ts-radius);
-    width: min(880px, 96vw);
-    max-width: 100%;
+    width: min(880px, 96vw); max-width: 100%;
     max-height: min(92vh, calc(100dvh - 40px));
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: var(--ts-shadow);
+    display: flex; flex-direction: column; overflow: hidden;
 }
-
 .ts-fm-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    flex: 1; overflow-y: auto; padding: 18px 24px 24px;
+    display: flex; flex-direction: column; gap: 16px;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
-
-.ts-fm-langs {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    flex-wrap: wrap;
-}
+.ts-fm-langs { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .ts-fm-langs .ts-sfield { margin-bottom: 0; flex: 1; min-width: 140px; }
-#ts-fm-swap { align-self: flex-end; }
-
-.ts-fm-cols {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-}
-@media (max-width: 700px) { .ts-fm-cols { grid-template-columns: 1fr; } }
-
-.ts-fm-col { display: flex; flex-direction: column; gap: 6px; }
+#ts-fm-swap { align-self: flex-end; width: 42px; height: 42px; border: 1px solid var(--ts-border); }
+.ts-fm-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ts-fm-col { display: flex; flex-direction: column; gap: 8px; }
 .ts-fm-col label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--ts-textMuted);
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
+    display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: var(--ts-caps); color: var(--ts-textMuted);
 }
+.ts-fm-col label i { font-size: 10px; opacity: 0.8; }
 .ts-fm-col textarea {
-    flex: 1;
-    min-height: 200px;
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 10px;
-    color: var(--ts-text);
-    padding: 11px 13px;
-    font-size: 13px;
-    line-height: 1.55;
-    resize: vertical;
-    outline: none;
-    font-family: inherit;
-    transition: border-color 0.14s, box-shadow 0.14s;
-    box-sizing: border-box;
-    width: 100%;
+    flex: 1; min-height: 200px; background: transparent;
+    border: 1px solid var(--ts-border); border-radius: var(--ts-r);
+    color: var(--ts-text); padding: 14px 16px; font-size: 14px; line-height: 1.7;
+    resize: vertical; outline: none; font-family: inherit; transition: border-color 0.16s;
+    box-sizing: border-box; width: 100%;
 }
-.ts-fm-col textarea:focus {
-    border-color: var(--ts-accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ts-accent) 15%, transparent);
-}
-.ts-fm-col textarea[readonly] {
-    color: var(--ts-textMuted);
-    background: var(--ts-cardBg);
-}
+.ts-fm-col textarea:focus { border-color: var(--ts-text); }
+.ts-fm-col textarea[readonly] { color: var(--ts-textMuted); background: var(--ts-surfaceBg); }
 
 .ts-fm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ts-fm-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 9px 16px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    transition: background 0.13s, border-color 0.13s, opacity 0.13s, color 0.13s;
-    border: 1px solid;
-    white-space: nowrap;
-    flex-shrink: 0;
-    font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 44px; padding: 0 22px; border-radius: var(--ts-r);
+    cursor: pointer; font-size: 14px; font-weight: 500; border: 1px solid var(--ts-ink);
+    transition: background 0.16s, color 0.16s, opacity 0.16s; white-space: nowrap; flex-shrink: 0; font-family: inherit;
 }
-.ts-fm-btn:disabled {
-    opacity: 0.30;
-    cursor: not-allowed;
-    pointer-events: none;
-}
-.ts-fm-primary {
-    background: var(--ts-accent);
-    border-color: var(--ts-accent);
-    color: var(--ts-onAccent);
-}
+.ts-fm-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.ts-fm-primary { background: var(--ts-addBtn); color: var(--ts-onAdd); }
 .ts-fm-primary:hover:not(:disabled) { opacity: 0.88; }
-.ts-fm-success {
-    background: rgba(50, 200, 100, 0.12);
-    border-color: rgba(50, 200, 100, 0.45);
-    color: color-mix(in srgb, #22c55e 60%, var(--ts-text));
-}
-.ts-fm-success:hover:not(:disabled) {
-    background: rgba(50, 200, 100, 0.22);
-    border-color: rgba(50, 200, 100, 0.65);
-}
-.ts-fm-secondary {
-    background: var(--ts-surfaceBg);
-    border-color: var(--ts-border);
-    color: var(--ts-textMuted);
-}
-.ts-fm-secondary:hover:not(:disabled) {
-    background: var(--ts-cardBg);
-    color: var(--ts-text);
-    border-color: var(--ts-accent);
-}
+.ts-fm-success { background: transparent; color: var(--ts-accent); border-color: var(--ts-accent); }
+.ts-fm-success:hover:not(:disabled) { background: var(--ts-accent); color: var(--ts-onAccent); }
+.ts-fm-secondary { background: transparent; color: var(--ts-textMuted); border-color: var(--ts-border); }
+.ts-fm-secondary:hover:not(:disabled) { color: var(--ts-text); border-color: var(--ts-ink); }
 
-.ts-fm-status {
-    font-size: 12.5px;
-    min-height: 16px;
-    color: var(--ts-textMuted);
-    transition: color 0.14s;
-}
-.ts-fm-st-ok   { color: color-mix(in srgb, #22c55e 60%, var(--ts-text)); }
-.ts-fm-st-err  { color: color-mix(in srgb, #ef4444 65%, var(--ts-text)); }
+.ts-fm-status { font-size: 12.5px; min-height: 16px; color: var(--ts-textMuted); }
+.ts-fm-st-ok   { color: color-mix(in srgb, #2f9e62 70%, var(--ts-text)); }
+.ts-fm-st-err  { color: color-mix(in srgb, #c0392b 70%, var(--ts-text)); }
 .ts-fm-st-info { color: var(--ts-textMuted); }
 
-/* ──────────────────────────────────────────────────────────────
-   Адаптив (мобильный)
-   ────────────────────────────────────────────────────────────── */
-@media (max-width: 600px) {
-    #ts-overlay,
-    #ts-vo,
-    #ts-so,
-    #ts-to,
-    #ts-fm {
-        align-items: flex-start;
-        padding: 10px;
-        padding-top: max(50px, env(safe-area-inset-top, 20px));
-    }
-    #ts-card,
-    #ts-vp,
-    #ts-tp,
-    #ts-sp,
-    #ts-fm-card {
-        width: calc(100vw - 20px);
-        max-height: calc(100dvh - 70px);
-        border-radius: 14px;
-    }
-    #ts-bclose,
-    #ts-badd {
-        padding: 14px 0;
-        font-size: 15px;
-        min-height: 48px;
-    }
-    .ts-fm-btn { padding: 11px 14px; font-size: 14px; }
-    #ts-toast { bottom: 80px; }
-}
-
-@media (max-width: 380px) {
-    #ts-title { font-size: 22px; }
-    .ts-stab { padding: 8px 10px; font-size: 12px; }
-}
-
-/* ── Режим «весь абзац» ── */
-#ts-card.ts-para #ts-title {
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: 0;
-    color: var(--ts-textMuted);
-}
-#ts-card.ts-para #ts-trow { align-items: flex-start; }
-#ts-card.ts-para .ts-arr { margin-top: 5px; }
-#ts-card.ts-para #ts-tr {
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 1.65;
-    letter-spacing: 0;
-    white-space: pre-wrap;
-    color: var(--ts-text);
-}
-#ts-card.ts-para #ts-cen {
-    white-space: pre-wrap;
-    max-height: 30vh;
-    overflow-y: auto;
-}
-
-/* ── Окна поверх прозрачных тем ── */
-#ts-card, #ts-vp, #ts-sp, #ts-tp, #ts-fm-card {
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-}
-
-/* ── Вкладка «Цвета»: подсказка и сброс к цвету темы ── */
-.ts-cr-tag {
-    display: none;
-    margin-left: 6px;
-    padding: 1px 6px;
-    border-radius: 6px;
-    font-size: 10px; font-style: normal; font-weight: 600;
-    letter-spacing: .02em;
-    color: var(--ts-accent);
-    background: color-mix(in srgb, var(--ts-accent) 14%, transparent);
-}
+/* ── Вкладка «Цвета» ── */
+.ts-cr-tag { display: none; margin-left: 6px; padding: 0 6px; border: 1px solid var(--ts-accent); border-radius: var(--ts-r); font-size: 9.5px; font-style: normal; font-weight: 600; color: var(--ts-accent); }
 .ts-cr[data-auto="1"] .ts-cr-tag { display: inline-block; }
 .ts-cr-auto {
-    background: var(--ts-surfaceBg);
-    border: 1px solid var(--ts-border);
-    border-radius: 8px;
-    width: 30px; height: 30px;
+    background: none; border: 0; border-radius: var(--ts-r); width: 30px; height: 30px;
     display: flex; align-items: center; justify-content: center;
-    color: var(--ts-textMuted);
-    font-size: 12px; cursor: pointer; flex-shrink: 0; padding: 0;
+    color: var(--ts-textMuted); font-size: 12px; cursor: pointer; flex-shrink: 0; padding: 0;
 }
-.ts-cr-auto:hover { border-color: var(--ts-accent); color: var(--ts-accent); }
+.ts-cr-auto:hover { background: var(--ts-tint); color: var(--ts-accent); }
 .ts-cr[data-auto="1"] .ts-cr-auto { opacity: .35; pointer-events: none; }
+
+/* ════════════════════════════════════════════════════════════
+   ТЕЛЕФОН — нижняя шторка
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+    #ts-overlay, #ts-vo, #ts-so, #ts-to, #ts-fm {
+        align-items: flex-end; padding: 0; background: rgba(8, 8, 12, 0.45);
+    }
+    #ts-card, #ts-vp, #ts-tp, #ts-sp, #ts-fm-card {
+        width: 100%; max-width: 100%; border-radius: 0; border-width: 1px 0 0;
+        transform: translateY(100%); transition: transform 0.34s var(--ts-ease);
+        box-shadow: 0 -14px 50px rgba(0, 0, 0, 0.28);
+    }
+    #ts-vp, #ts-tp, #ts-sp { max-height: 88dvh; }
+    #ts-fm-card { max-height: 94dvh; }
+
+    #ts-card::before, #ts-vp::before, #ts-tp::before, #ts-sp::before, #ts-fm-card::before {
+        content: ''; display: block; flex-shrink: 0; width: 40px; height: 4px;
+        background: var(--ts-border); margin: 10px auto 4px;
+    }
+
+    #ts-card { padding: 0 22px calc(22px + env(safe-area-inset-bottom, 0px)); max-height: 88dvh; }
+
+    /* «Слово | Весь абзац» — две вкладки с подчёркиванием */
+    #ts-seg { display: flex; margin: 8px -22px 20px; border-bottom: 1px solid var(--ts-border); }
+    #ts-seg button {
+        flex: 1; height: 42px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+        background: transparent; color: var(--ts-textMuted); font-weight: 500; font-size: 14px;
+        font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+        transition: color 0.18s, border-color 0.18s;
+    }
+    #ts-seg button i { font-size: 12px; }
+    #ts-seg button.ts-seg-on { color: var(--ts-accent); border-bottom-color: var(--ts-accent); }
+
+    .ts-hbtns { display: none; }
+    #ts-title { font-size: 44px; }
+    #ts-tr { font-size: 26px; }
+
+    #ts-ctx { margin: 20px 0; }
+    #ts-bclose { display: none; }
+    #ts-badd { height: 52px; font-size: 16px; }
+    .ts-more { display: inline; }
+
+    #ts-foot { display: flex; gap: 10px; margin-top: 10px; }
+    #ts-foot button {
+        flex: 1; height: 44px; border: 0; border-bottom: 1px solid var(--ts-border); border-radius: 0;
+        background: transparent; color: var(--ts-text); font-weight: 500; font-size: 14px; font-family: inherit;
+        cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    #ts-foot button i { color: var(--ts-accent); font-size: 13px; }
+    #ts-foot button:active { background: var(--ts-tint); }
+
+    .ts-vhead { padding: 6px 12px 12px 20px; }
+    #ts-shead { padding: 6px 12px 10px 20px; }
+    .ts-hb { width: 40px; height: 40px; }
+    .ts-vha { gap: 0; }
+    .ts-vha .ts-hb { width: 36px; height: 36px; }
+    .ts-vhead-title { white-space: nowrap; }
+    .ts-ve { margin: 0 20px; }
+    #ts-vsearch { margin: 0 20px; }
+    .ts-vdel { opacity: 0.55; right: -6px; }
+    #ts-stabs { padding: 0 20px; gap: 18px; }
+    .ts-spane { padding: 16px 20px; }
+    #ts-cgrid { grid-template-columns: 1fr; }
+    .ts-fm-cols { grid-template-columns: 1fr; }
+    .ts-fm-col textarea { min-height: 130px; }
+    .ts-fm-body { padding: 16px 20px calc(20px + env(safe-area-inset-bottom, 0px)); }
+    .ts-fm-btn { flex: 1; }
+    #ts-sfooter { padding: 12px 20px calc(18px + env(safe-area-inset-bottom, 0px)); }
+    #ts-toast { bottom: 90px; }
+
+    #ts-overlay.ts-on #ts-card,
+    #ts-vo.ts-on #ts-vp,
+    #ts-so.ts-on #ts-sp,
+    #ts-to.ts-on #ts-tp,
+    #ts-fm.ts-on #ts-fm-card { transform: translateY(0); }
+}
+@media (max-width: 380px) {
+    #ts-title { font-size: 36px; }
+    #ts-tr { font-size: 22px; }
+    .ts-stab { font-size: 12.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #ts-card, #ts-vp, #ts-sp, #ts-tp, #ts-fm-card, .ts-slider:before { transition: none !important; }
+}

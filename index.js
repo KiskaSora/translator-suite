@@ -9,6 +9,8 @@ import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types, getRequestHeaders } from '../../../../script.js';
 
 const EXT = 'translator-suite';
+// Кнопка «Добавить»: на телефоне подпись длиннее («Добавить в словарь»), на ПК — короткая
+const ADD_HTML = '<i class="fa-solid fa-bookmark"></i><span>Добавить<span class="ts-more"> в словарь</span></span>';
 
 // ── Цвета ────────────────────────────────────────────────────
 // По умолчанию все цвета берутся из темы Таверны (см. style.css, --ts-auto-*).
@@ -678,8 +680,20 @@ function buildUiHtml() {
 <!-- ═══ Карточка перевода слова (модуль «Слова») ═══ -->
 <div id="ts-overlay">
   <div id="ts-card">
+    <div id="ts-seg" role="tablist">
+      <button type="button" id="ts-seg-word" class="ts-seg-on" role="tab"><i class="fa-solid fa-font"></i> Слово</button>
+      <button type="button" id="ts-seg-para" role="tab"><i class="fa-solid fa-paragraph"></i> Весь абзац</button>
+    </div>
     <div id="ts-top">
-      <span id="ts-title"></span>
+      <div id="ts-wl">
+        <span id="ts-title"></span>
+        <div id="ts-trow">
+          <i class="fa-solid fa-arrow-right-long ts-arr"></i>
+          <span id="ts-tr"></span>
+          <i class="fa-solid fa-circle-notch fa-spin" id="ts-spin" style="display:none"></i>
+        </div>
+        <div class="ts-note" id="ts-count" style="display:none"></div>
+      </div>
       <div class="ts-hbtns">
         <button class="ts-hb" id="ts-btn-mode" title="Перевести весь абзац">
           <i class="fa-solid fa-paragraph"></i>
@@ -692,17 +706,17 @@ function buildUiHtml() {
         </button>
       </div>
     </div>
-    <div class="ts-note" id="ts-count" style="display:none"></div>
-    <div id="ts-trow">
-      <i class="fa-solid fa-arrow-right-long ts-arr"></i>
-      <span id="ts-tr"></span>
-      <i class="fa-solid fa-circle-notch fa-spin" id="ts-spin" style="display:none"></i>
+    <div id="ts-ctx">
+      <div id="ts-cru"></div>
+      <div id="ts-cen"></div>
     </div>
-    <div id="ts-cru"></div>
-    <div id="ts-cen"></div>
     <div id="ts-btns">
       <button id="ts-bclose"><i class="fa-solid fa-xmark"></i> Закрыть</button>
-      <button id="ts-badd"><i class="fa-solid fa-bookmark"></i> Добавить</button>
+      <button id="ts-badd">${ADD_HTML}</button>
+    </div>
+    <div id="ts-foot">
+      <button type="button" id="ts-foot-vocab"><i class="fa-solid fa-book-open"></i> Мой словарь</button>
+      <button type="button" id="ts-foot-settings"><i class="fa-solid fa-gear"></i> Настройки</button>
     </div>
   </div>
 </div>
@@ -1086,6 +1100,8 @@ function setCardMode(mode) {
     const para = mode === 'paragraph';
     $('#ts-card').toggleClass('ts-para', para);
     $('#ts-badd').toggle(!para);
+    $('#ts-seg-word').toggleClass('ts-seg-on', !para);
+    $('#ts-seg-para').toggleClass('ts-seg-on', para);
     $('#ts-btn-mode').attr('title', para ? 'Показать слово' : 'Перевести весь абзац')
         .find('i').attr('class', para ? 'fa-solid fa-font' : 'fa-solid fa-paragraph');
 }
@@ -1100,7 +1116,7 @@ async function showCard(word, $el, ctx) {
     $('#ts-spin').show();
     $('#ts-cru, #ts-cen').html('');
     if (already) $('#ts-badd').html('<i class="fa-solid fa-check"></i> Уже в словаре').attr('class', 'ts-already');
-    else         $('#ts-badd').html('<i class="fa-solid fa-bookmark"></i> Добавить').attr('class', '');
+    else         $('#ts-badd').html(ADD_HTML).attr('class', '');
     $('#ts-overlay').addClass('ts-on');
     try {
         cur.context = ctx.sentence || getSentence($el.text() || '', word);
@@ -1545,8 +1561,8 @@ function setupEvents() {
     $('#ts-overlay').on('click', function(e) { if (e.target === this) hideCard(); });
     $('#ts-bclose').on('click', hideCard);
     $('#ts-badd').on('click', addWord);
-    $('#ts-btn-vocab').on('click', () => { hideCard(); showVocab(); });
-    $('#ts-btn-settings').on('click', () => { hideCard(); openSettings(); });
+    $('#ts-btn-vocab, #ts-foot-vocab').on('click', () => { hideCard(); showVocab(); });
+    $('#ts-btn-settings, #ts-foot-settings').on('click', () => { hideCard(); openSettings(); });
 
     // Словарь
     $('#ts-vo').on('click', function(e) { if (e.target === this) hideVocab(); });
@@ -1652,6 +1668,12 @@ function setupEvents() {
         } else if (c.ctx && c.ctx.paragraph) {
             showParagraph(c.ctx.paragraph, c.$el || $(), c.ctx);
         }
+    });
+
+    // Сегмент «Слово / Весь абзац» (телефон) — то же, что кнопка абзаца на ПК
+    $('#ts-seg-word, #ts-seg-para').on('click', function() {
+        const wantPara = this.id === 'ts-seg-para';
+        if (((cur || {}).mode === 'paragraph') !== wantPara) $('#ts-btn-mode').trigger('click');
     });
 
     // Двойной клик / тап → перевод слова или абзаца (модуль «Слова»)
