@@ -231,6 +231,69 @@ const PROVIDERS = {
             return await r.text();
         }
     },
+    stprofile: {
+        label: 'Профиль подключения Таверны (Vertex, Claude, Gemini…)',
+        needsProfile: true, hasPrompt: true,
+        info: '🔌 Использует профили из расширения «Connection Manager» Таверны: ключи, endpoint, Vertex и прочие настройки берутся оттуда. Ничего вводить не нужно.',
+        async fn(text, tl, sl, key, url, extra) {
+            const svc = await stGetRequestService();
+            if (!svc) throw new Error('Не найден ConnectionManagerRequestService. Обнови Таверну и включи расширение Connection Manager.');
+            const profiles = stGetProfiles();
+            if (!profiles.length) throw new Error('В Таверне нет профилей подключения (Connection Manager → создай профиль).');
+            let id = (extra && extra.profileId) || stGetSelectedProfileId();
+            if (!id || !profiles.some(p => p.id === id)) throw new Error('Профиль подключения не выбран или удалён.');
+            const sys = ((extra && extra.systemPrompt) || DEFAULT_CUSTOM_PROMPT) + ((extra && extra.genderNote) ? '\n\n' + extra.genderNote : '');
+            const srcStr = (!sl || sl === 'auto')
+                ? 'Определи язык оригинала автоматически'
+                : 'с языка ' + langName(sl);
+            const userMsg = `Переведи следующий текст ${srcStr} на ${langName(tl)}:\n\n${text}`;
+            const maxTokens = Math.min(16000, Math.max(2000, text.length * 4));
+            const res = await svc.sendRequest(
+                id,
+                [{ role: 'system', content: sys }, { role: 'user', content: userMsg }],
+                maxTokens,
+                { stream: false, extractData: true, includePreset: false, includeInstruct: false },
+                { temperature: 0.2 }
+            );
+            const content = (res && typeof res === 'object') ? res.content : res;
+            if (!content || !String(content).trim()) throw new Error('Пустой ответ от профиля');
+            return String(content).trim();
+        }
+    },
+    stauto: {
+        label: 'Автоподключение Таверны (текущий API чата, вкл. Vertex AI)',
+        needsAuto: true, hasPrompt: true,
+        info: '⚠️ Запросы идут через ТЕКУЩЕЕ подключение Таверны и тратят его токены/деньги. Ключ и endpoint вводить не нужно. Можно указать другую модель только для перевода.',
+        async fn(text, tl, sl, key, url, extra) {
+            const det = await stAutoDetect();
+            if (!det.ok) throw new Error(det.reason);
+            const oai = det.oai;
+            let svc = null;
+            try { svc = (await import('../../shared.js')).ChatCompletionService; } catch (_) {}
+            if (!svc) throw new Error('Не найден ChatCompletionService. Обнови Таверну.');
+            const model = ((extra && extra.autoModel) || det.model || '').trim();
+            if (!model) throw new Error('Модель не определена — укажи её в настройках переводчика.');
+            const sys = ((extra && extra.systemPrompt) || DEFAULT_CUSTOM_PROMPT) + ((extra && extra.genderNote) ? '\n\n' + extra.genderNote : '');
+            const srcStr = (!sl || sl === 'auto')
+                ? 'Определи язык оригинала автоматически'
+                : 'с языка ' + langName(sl);
+            const userMsg = `Переведи следующий текст ${srcStr} на ${langName(tl)}:\n\n${text}`;
+            const custom = {
+                stream: false, api: det.source, model,
+                messages: [{ role: 'system', content: sys }, { role: 'user', content: userMsg }],
+                max_tokens: Math.min(16000, Math.max(2000, text.length * 4)),
+                temperature: 0.2,
+                apiUrl: det.source === 'custom' ? (oai.custom_url || '') : (oai.reverse_proxy || ''),
+                vertexai_auth_mode: oai.vertexai_auth_mode,
+                vertexai_region: oai.vertexai_region,
+                vertexai_express_project_id: oai.vertexai_express_project_id,
+            };
+            const res = await svc.processRequest(custom, {}, true);
+            const content = (res && typeof res === 'object') ? res.content : res;
+            if (!content || !String(content).trim()) throw new Error('Пустой ответ от текущего подключения Таверны');
+            return String(content).trim();
+        }
+    },
     custom: {
         label: 'Custom AI (OpenAI-совместимый)',
         needsKey: true, needsUrl: true, hasModel: true,
@@ -273,6 +336,41 @@ const PROVIDERS = {
         }
     }
 };
+
+// ── Профили подключения Таверны (Connection Manager) ─────────
+function stGetProfiles() {
+    const cm = extension_settings.connectionManager;
+    return (cm && Array.isArray(cm.profiles)) ? cm.profiles : [];
+}
+function stGetSelectedProfileId() {
+    const cm = extension_settings.connectionManager;
+    return (cm && cm.selectedProfile) || '';
+}
+async function stGetRequestService() {
+    let svc = null;
+    try { svc = getContext().ConnectionManagerRequestService; } catch (_) {}
+    if (!svc) {
+        try { svc = (await import('../../shared.js')).ConnectionManagerRequestService; } catch (_) {}
+    }
+    return svc || null;
+}
+
+// ── Автоподключение: текущий API Таверны (Chat Completion) ────
+// Читает активный источник/модель из настроек Таверны. Ключи остаются в Таверне.
+async function stAutoDetect() {
+    let oai, mainApi = '';
+    try { oai = (await import('../../../openai.js')).oai_settings; } catch (_) {}
+    try { mainApi = (await import('../../../../script.js')).main_api; } catch (_) {}
+    if (!oai) return { ok: false, reason: 'Не удалось прочитать настройки Таверны.' };
+    if (mainApi && mainApi !== 'openai')
+        return { ok: false, reason: 'В Таверне выбран не Chat Completion (поддерживается только он).' };
+    const source = oai.chat_completion_source || '';
+    if (!source) return { ok: false, reason: 'Источник Chat Completion не выбран в Таверне.' };
+    let model = '';
+    try { model = (await import('../../../openai.js')).getChatCompletionModel(source) || ''; } catch (_) {}
+    if (!model) model = oai.vertexai_model || oai.openai_model || '';
+    return { ok: true, oai, source, model };
+}
 
 // ── Порядок автофоллбэка ──────────────────────────────────────
 // Если выбранный провайдер падает — пробуем остальные бесплатные backend-провайдеры
@@ -403,7 +501,7 @@ if (!extension_settings[EXT]) {
         // Общие
         provider: 'google', apiKey: '', libreUrl: '',
         sourceLang: 'auto', targetLang: 'ru',
-        customModel: '', customSystemPrompt: DEFAULT_CUSTOM_PROMPT,
+        customModel: '', customSystemPrompt: DEFAULT_CUSTOM_PROMPT, stProfileId: '', autoModel: '',
         userGender: '', charGender: '',
         cacheEnabled: true, cacheMax: 300, tcache: [],
         colors: {}, colorsVersion: 2,
@@ -434,6 +532,8 @@ if (!_s.provider)                      _s.provider           = 'google';
 if (!_s.targetLang)                    _s.targetLang         = 'ru';
 if (_s.sourceLang === undefined)       _s.sourceLang         = 'auto';
 if (_s.customModel === undefined)      _s.customModel        = '';
+if (_s.stProfileId === undefined)      _s.stProfileId        = '';
+if (_s.autoModel === undefined)        _s.autoModel          = '';
 if (_s.customSystemPrompt === undefined) _s.customSystemPrompt = DEFAULT_CUSTOM_PROMPT;
 if (_s.userGender === undefined)       _s.userGender         = '';
 if (_s.charGender === undefined)       _s.charGender         = '';
@@ -919,6 +1019,16 @@ function buildUiHtml() {
         </div>
         <div class="ts-note" id="ts-s-keynote"></div>
       </div>
+      <div class="ts-sfield" id="ts-sf-auto">
+        <label><i class="fa-solid fa-bolt"></i> Автоподключение Таверны</label>
+        <div class="ts-note ts-req" id="ts-s-autoinfo">…</div>
+        <input id="ts-s-automodel" type="text" placeholder="Модель только для перевода (пусто = модель чата)" style="margin-top:8px">
+      </div>
+      <div class="ts-sfield" id="ts-sf-profile">
+        <label><i class="fa-solid fa-plug"></i> Профиль подключения Таверны</label>
+        <select id="ts-s-profile" class="text_pole"></select>
+        <div class="ts-note">По умолчанию — профиль, активный в Таверне прямо сейчас.</div>
+      </div>
       <div class="ts-sfield" id="ts-sf-url">
         <label><i class="fa-solid fa-server"></i> URL сервера</label>
         <input id="ts-s-url" type="text" placeholder="https://...">
@@ -1052,6 +1162,8 @@ function loadSettingsUI() {
     $('#ts-s-eye').find('i').attr('class', 'fa-solid fa-eye');
     $('#ts-s-url').val(c.libreUrl || '');
     $('#ts-s-model').val(c.customModel || '');
+    fillProfileSelect(c.stProfileId || '');
+    $('#ts-s-automodel').val(c.autoModel || '');
     $('#ts-s-sysprompt').val(c.customSystemPrompt || DEFAULT_CUSTOM_PROMPT);
     $('#ts-s-gender').val(c.userGender || '');
     $('#ts-s-chargender').val(c.charGender || '');
@@ -1073,6 +1185,22 @@ function loadSettingsUI() {
     updateProviderUI();
 }
 
+async function refreshAutoInfo() {
+    const $i = $('#ts-s-autoinfo');
+    const det = await stAutoDetect();
+    $i.text(det.ok
+        ? '✅ Сейчас будет использоваться: ' + det.source + (det.model ? ' / ' + det.model : ' (модель не определена)') + ' — расходуются токены этого подключения'
+        : '❌ ' + det.reason);
+}
+
+function fillProfileSelect(selected) {
+    const profiles = stGetProfiles();
+    const cur = profiles.find(p => p.id === stGetSelectedProfileId());
+    const opts = ['<option value="">— текущий активный' + (cur ? ': ' + esc(cur.name) : '') + ' —</option>']
+        .concat(profiles.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`));
+    $('#ts-s-profile').html(opts.join('')).val(profiles.some(p => p.id === selected) ? selected : '');
+}
+
 function updateProviderUI() {
     const pk = $('#ts-s-provider').val() || 'google';
     const p  = PROVIDERS[pk] || PROVIDERS.google;
@@ -1090,8 +1218,14 @@ function updateProviderUI() {
         if (p.urlPlaceholder) $('#ts-s-url').attr('placeholder', p.urlPlaceholder);
     } else $('#ts-sf-url').hide();
 
-    if (p.hasModel) { $('#ts-sf-model').show(); $('#ts-sf-sysprompt').show(); $('.ts-sf-gender').show(); }
-    else            { $('#ts-sf-model').hide(); $('#ts-sf-sysprompt').hide(); $('.ts-sf-gender').hide(); }
+    if (p.needsAuto) { $('#ts-sf-auto').show(); refreshAutoInfo(); } else $('#ts-sf-auto').hide();
+
+    if (p.needsProfile) { fillProfileSelect($('#ts-s-profile').val() || cfg().stProfileId || ''); $('#ts-sf-profile').show(); }
+    else $('#ts-sf-profile').hide();
+
+    if (p.hasModel) $('#ts-sf-model').show(); else $('#ts-sf-model').hide();
+    if (p.hasModel || p.hasPrompt || p.needsAuto) { $('#ts-sf-sysprompt').show(); $('.ts-sf-gender').show(); }
+    else                           { $('#ts-sf-sysprompt').hide(); $('.ts-sf-gender').hide(); }
 
     if (p.info) $('#ts-s-pinfo').text(p.info).show();
     else        $('#ts-s-pinfo').hide();
@@ -1131,6 +1265,8 @@ function saveSettingsFromUI() {
     c.apiKey           = $('#ts-s-key').val() || '';
     c.libreUrl         = ($('#ts-s-url').val() || '').trim().replace(/\/$/, '');
     c.customModel      = ($('#ts-s-model').val() || '').trim();
+    c.stProfileId      = $('#ts-s-profile').val() || '';
+    c.autoModel        = ($('#ts-s-automodel').val() || '').trim();
     c.customSystemPrompt = $('#ts-s-sysprompt').val() || DEFAULT_CUSTOM_PROMPT;
     c.userGender       = $('#ts-s-gender').val() || '';
     c.charGender       = $('#ts-s-chargender').val() || '';
@@ -1164,7 +1300,7 @@ let lastProviderUsed = '';
 // Запись: { src, tr, meta, prov, sl, tl, ts }. meta = провайдер(+модель) | языки | род —
 // при смене любого из них старый перевод не подставляется.
 const cacheMeta = (prov, sl, tl, note) =>
-    [prov, prov === 'custom' ? (cfg().customModel || '') : '', sl || 'auto', tl, note || ''].join('|');
+    [prov, prov === 'custom' ? (cfg().customModel || '') : prov === 'stprofile' ? (cfg().stProfileId || stGetSelectedProfileId()) : prov === 'stauto' ? (cfg().autoModel || 'chat-model') : '', sl || 'auto', tl, note || ''].join('|');
 
 function cacheFind(src, meta) {
     return cfg().tcache.find(e => e.meta === meta && e.src === src);
@@ -1182,12 +1318,12 @@ function cachePut(src, tr, meta, prov, sl, tl) {
 async function translateWith(text, sl, tl, opts) {
     const c = cfg();
     const note  = buildGenderNote(opts && opts.author);
-    const extra = { model: c.customModel, systemPrompt: c.customSystemPrompt, genderNote: note };
+    const extra = { model: c.customModel, profileId: c.stProfileId, autoModel: c.autoModel, systemPrompt: c.customSystemPrompt, genderNote: note };
     const runProvider = (id) => PROVIDERS[id].fn(text, tl, sl, c.apiKey || '', c.libreUrl || '', extra);
 
     const primary = PROVIDERS[c.provider] ? c.provider : 'google';
     const useCache = c.cacheEnabled !== false;
-    const noteFor  = id => id === 'custom' ? note : '';   // род влияет только на Custom AI
+    const noteFor  = id => (id === 'custom' || id === 'stprofile' || id === 'stauto') ? note : '';   // род влияет только на Custom AI
 
     if (useCache && !(opts && opts.fresh)) {
         const hit = cacheFind(text, cacheMeta(primary, sl, tl, noteFor(primary)));
